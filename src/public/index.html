@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f1216" />
+  <title>WP Autopilot</title>
+  <!-- Typography: Inter for the UI, Lora for the editorial article preview -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <!-- SheetJS: parse uploaded Excel/CSV keyword lists in the browser -->
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- KaTeX for rendering LaTeX math in the article preview -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="progress" class="progress"></div>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div>
+        <div class="brand-name">WP Autopilot</div>
+        <div class="brand-sub">24/7 SEO agent</div>
+      </div>
+    </div>
+    <nav id="nav">
+      <button class="nav-item active" data-view="workflow">✨ Workflow</button>
+      <button class="nav-item" data-view="articles">📝 Content</button>
+      <button class="nav-item" data-view="clusters">🕸 Hub &amp; Spoke</button>
+      <button class="nav-item" data-view="strategy">🧭 Strategy</button>
+      <button class="nav-item" data-view="autopilot">🤖 Autopilot</button>
+      <div class="nav-sep"></div>
+      <button class="nav-item" data-view="searchconsole">📊 Search Console</button>
+      <button class="nav-item" data-view="ahrefs">🔗 Ahrefs</button>
+      <button class="nav-item" data-view="stats">📈 Content Stats</button>
+      <button class="nav-item" data-view="site">🧩 WordPress</button>
+      <button class="nav-item" data-view="pages">🎨 Pages</button>
+      <div class="nav-sep"></div>
+      <button class="nav-item" data-view="settings">⚙ Settings</button>
+      <button class="nav-item" data-view="logs">📜 Activity</button>
+    </nav>
+    <div class="sidebar-foot">
+      <label class="switch">
+        <input type="checkbox" id="automationToggle" />
+        <span class="slider"></span>
+      </label>
+      <span id="automationLabel">Automation off</span>
+    </div>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <div class="title-group">
+        <h1 id="viewTitle">Dashboard</h1>
+        <p id="viewSubtitle" class="view-subtitle"></p>
+      </div>
+      <div class="topbar-actions">
+        <span id="connDots" class="conn-dots"></span>
+        <span id="acct" class="acct"></span>
+        <button class="icon-btn" id="themeToggle" title="Toggle light / dark">🌙</button>
+        <button class="btn" id="runNowBtn">⚡ Run pipeline now</button>
+      </div>
+    </header>
+    <section id="view" class="view"></section>
+  </main>
+
+  <div id="genPill" class="gen-pill hidden"></div>
+  <div id="toast" class="toast"></div>
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-head"><h3 id="modalTitle"></h3><button id="modalClose" class="icon-btn">✕</button></div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

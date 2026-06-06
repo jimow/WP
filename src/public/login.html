@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WP Autopilot — Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root{ --bg:#0d1117; --panel:#161b22; --panel2:#1d242e; --border:#29313c; --text:#e9eef4; --muted:#8693a3; --accent:#4f8cff; --accent2:#34d399; --danger:#f0685f; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; min-height:100vh; display:grid; place-items:center; font-family:"Inter",system-ui,sans-serif;
+      background:radial-gradient(1200px 600px at 70% -10%, rgba(79,140,255,.18), transparent), var(--bg); color:var(--text); padding:24px; }
+    .card{ width:min(420px,100%); background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 24px 60px rgba(0,0,0,.5); }
+    .brand{ display:flex; align-items:center; gap:11px; margin-bottom:18px; }
+    .logo{ width:40px; height:40px; border-radius:11px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:grid; place-items:center; font-size:21px; color:#06121f; }
+    .brand b{ font-size:16px; letter-spacing:-.01em; } .brand span{ display:block; font-size:12px; color:var(--muted); }
+    h1{ font-size:20px; margin:6px 0 2px; letter-spacing:-.02em; }
+    .sub{ color:var(--muted); font-size:13px; margin:0 0 20px; line-height:1.5; }
+    label{ display:block; font-size:13px; font-weight:500; margin:14px 0 6px; }
+    input{ width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:11px 13px; border-radius:9px; font-size:14px; font-family:inherit; }
+    input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,140,255,.3); }
+    .btn{ width:100%; margin-top:18px; background:var(--accent); color:#fff; border:0; padding:12px; border-radius:9px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .btn:hover{ filter:brightness(1.08); } .btn:disabled{ opacity:.6; cursor:not-allowed; }
+    .row{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:13px; }
+    a.link{ color:var(--accent); cursor:pointer; text-decoration:none; } a.link:hover{ text-decoration:underline; }
+    .msg{ margin-top:14px; font-size:13px; padding:10px 12px; border-radius:9px; display:none; }
+    .msg.err{ display:block; background:rgba(240,104,95,.12); border:1px solid rgba(240,104,95,.4); color:#ffb4ae; }
+    .msg.ok{ display:block; background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.4); color:#9af5ce; }
+    .badge{ display:inline-block; font-size:11px; font-weight:700; background:rgba(52,211,153,.18); color:var(--accent2); padding:3px 9px; border-radius:20px; margin-left:8px; }
+    .hide{ display:none; }
+    .foot{ margin-top:18px; font-size:11px; color:var(--muted); text-align:center; line-height:1.6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <a class="link" href="/landing.html" style="display:inline-block;margin-bottom:14px;font-size:13px">← Back to home</a>
+    <div class="brand"><div class="logo">◆</div><div><b>WP Autopilot</b><span>24/7 SEO content agent</span></div></div>
+
+    <!-- LOGIN -->
+    <form id="loginForm">
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to your workspace.</p>
+      <label>Email</label><input type="email" id="li_email" autocomplete="email" required />
+      <label>Password</label><input type="password" id="li_pass" autocomplete="current-password" required />
+      <button class="btn" type="submit">Sign in</button>
+      <div class="row"><a class="link" onclick="show('forgot')">Forgot password?</a><a class="link" onclick="show('register')">Create an account</a></div>
+    </form>
+
+    <!-- REGISTER -->
+    <form id="registerForm" class="hide">
+      <h1 id="regTitle">Create your account</h1>
+      <p class="sub" id="regSub">Set up your workspace.</p>
+      <label>Name</label><input type="text" id="rg_name" autocomplete="name" />
+      <label>Email</label><input type="email" id="rg_email" autocomplete="email" required />
+      <label>Password <span style="color:var(--muted);font-weight:400">(min 8 characters)</span></label><input type="password" id="rg_pass" autocomplete="new-password" required />
+      <button class="btn" type="submit">Create account</button>
+      <div class="row"><span style="color:var(--muted)">Already have an account?</span><a class="link" onclick="show('login')">Sign in</a></div>
+    </form>
+
+    <!-- FORGOT -->
+    <form id="forgotForm" class="hide">
+      <h1>Reset your password</h1>
+      <p class="sub">Enter your email and we'll create a reset link (sent to your notifications webhook / server log).</p>
+      <label>Email</label><input type="email" id="fg_email" autocomplete="email" required />
+      <button class="btn" type="submit">Send reset link</button>
+      <div class="row"><a class="link" onclick="show('login')">← Back to sign in</a></div>
+    </form>
+
+    <!-- RESET -->
+    <form id="resetForm" class="hide">
+      <h1>Choose a new password</h1>
+      <p class="sub">Enter a new password for your account.</p>
+      <label>New password <span style="color:var(--muted);font-weight:400">(min 8 characters)</span></label><input type="password" id="rs_pass" autocomplete="new-password" required />
+      <button class="btn" type="submit">Update password &amp; sign in</button>
+    </form>
+
+    <div id="msg" class="msg"></div>
+    <div class="foot">First account created becomes the <b>super admin</b> &amp; owns the shared settings (AI, Ahrefs). Each later account gets its own workspace for WordPress &amp; Search Console.</div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const forms = { login: '#loginForm', register: '#registerForm', forgot: '#forgotForm', reset: '#resetForm' };
+    function show(which) { for (const k in forms) $(forms[k]).classList.toggle('hide', k !== which); $('#msg').className = 'msg'; }
+    function msg(text, ok) { const m = $('#msg'); m.textContent = text; m.className = 'msg ' + (ok ? 'ok' : 'err'); }
+    async function post(path, body) {
+      const r = await fetch('/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Something went wrong');
+      return d;
+    }
+    // Decide initial screen: reset link → reset; first run → register (super
+    // admin); #register hash (from the marketing CTAs) → register; else login.
+    const resetToken = new URLSearchParams(location.search).get('reset');
+    const wantRegister = location.hash === '#register';
+    (async () => {
+      if (resetToken) { show('reset'); return; }
+      try {
+        const me = await fetch('/api/auth/me').then(r => r.json());
+        if ((me.userCount || 0) === 0) { show('register'); $('#regTitle').textContent = 'Create the super-admin account'; $('#regSub').innerHTML = 'You are the first user — you will own the shared settings. <span class="badge">super admin</span>'; }
+        else if (wantRegister) { show('register'); }
+        else { show('login'); }
+      }
+      catch { show(wantRegister ? 'register' : 'login'); }
+    })();
+
+    $('#loginForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/login', { email: $('#li_email').value, password: $('#li_pass').value }); location.href = '/'; } catch (err) { msg(err.message); } };
+    $('#registerForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/register', { name: $('#rg_name').value, email: $('#rg_email').value, password: $('#rg_pass').value }); location.href = '/'; } catch (err) { msg(err.message); } };
+    $('#forgotForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/forgot', { email: $('#fg_email').value }); msg('If that email exists, a reset link has been created (check your notifications webhook or the server log).', true); } catch (err) { msg(err.message); } };
+    $('#resetForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/reset', { token: resetToken, password: $('#rs_pass').value }); location.href = '/'; } catch (err) { msg(err.message); } };
+  </script>
+</body>
+</html>

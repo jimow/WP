@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contact — WP Autopilot | Talk to us or book a demo</title>
+  <meta name="description" content="Get in touch with the WP Autopilot team. Ask a question, book a demo, or get help connecting your WordPress site." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;850&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/marketing.css" />
+</head>
+<body>
+  <div id="site-nav"></div>
+
+  <header class="hero" style="padding-bottom:24px">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span> We'd love to hear from you</span>
+      <h1>Let's get your content<br><span class="grad">on autopilot.</span></h1>
+      <p class="lead">Questions about setup, multi-tenancy or pricing? Want a guided demo? Send us a note — we usually reply within one business day.</p>
+    </div>
+  </header>
+
+  <section class="sec" style="padding-top:10px">
+    <div class="wrap">
+      <div class="contact-grid">
+        <div class="contact-info reveal">
+          <div class="ci"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></div><div><b>Email</b><span>hello@wp-autopilot.app</span></div></div>
+          <div class="ci"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></div><div><b>Book a demo</b><span>See the engine run on a live site</span></div></div>
+          <div class="ci"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div><div><b>Response time</b><span>Within one business day</span></div></div>
+          <div class="ci"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div><div><b>Already a customer?</b><span><a href="/login.html" style="color:var(--accent)">Sign in to your dashboard →</a></span></div></div>
+          <div style="margin-top:26px;padding:20px;border:1px solid var(--border);border-radius:14px;background:var(--panel)">
+            <b style="display:block;margin-bottom:6px">Prefer to just start?</b>
+            <span style="color:var(--text-dim);font-size:14.5px">Skip the back-and-forth — create your free account and connect a site in minutes.</span>
+            <div style="margin-top:14px"><a class="btn btn-primary" href="/login.html#register">Start free →</a></div>
+          </div>
+        </div>
+
+        <div class="form-card reveal">
+          <div class="alert" id="contactOk">Thanks! Your email client should open with your message ready to send.</div>
+          <form id="contactForm">
+            <div class="field"><label for="cname">Name</label><input id="cname" name="name" type="text" placeholder="Your name" required /></div>
+            <div class="field"><label for="cemail">Email</label><input id="cemail" name="email" type="email" placeholder="you@company.com" required /></div>
+            <div class="field"><label for="ctopic">I'm interested in</label>
+              <select id="ctopic" name="topic">
+                <option>A product demo</option>
+                <option>Pricing &amp; plans</option>
+                <option>Agency / multi-site setup</option>
+                <option>Help connecting WordPress</option>
+                <option>Something else</option>
+              </select>
+            </div>
+            <div class="field"><label for="cmsg">Message</label><textarea id="cmsg" name="message" placeholder="Tell us about your site and what you're trying to achieve…" required></textarea></div>
+            <button class="btn btn-primary btn-block btn-lg" type="submit">Send message</button>
+            <p class="form-note">This opens your email app with the message pre-filled. Prefer email? Write to hello@wp-autopilot.app.</p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="site-footer"></div>
+  <script src="/site.js"></script>
+</body>
+</html>
