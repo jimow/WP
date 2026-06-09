@@ -82,4 +82,28 @@ export async function selectAll(table, { limit = 50000, order } = {}) {
   return select(table, { limit, order, workspaceId: null });
 }
 
-export default { configured, workspaceId, ping, upsert, select, selectAll };
+// --- First-class tables (wpa_*) ---------------------------------------------
+// Upsert pre-built rows into ANY table (rows already carry their columns incl
+// the `ws` partition). `onConflict` = the table's PK columns (e.g. "ws,id").
+export async function upsertRows(table, rows, { onConflict } = {}) {
+  if (!rows || !rows.length) return { count: 0 };
+  await rest(table, {
+    method: 'POST',
+    query: { on_conflict: onConflict },
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: rows,
+  });
+  return { count: rows.length };
+}
+// Read all rows from a table (no filter; service_role bypasses RLS).
+export async function selectRows(table, { limit = 50000, order } = {}) {
+  const query = { limit: String(limit) };
+  if (order) query.order = order;
+  return rest(table, { query });
+}
+// Delete all rows for a workspace from a wpa_* table (ws = partition column).
+export async function deleteWs(table, ws) {
+  return rest(table, { method: 'DELETE', query: { ws: `eq.${ws}` }, headers: { Prefer: 'return=minimal' } });
+}
+
+export default { configured, workspaceId, ping, upsert, select, selectAll, upsertRows, selectRows, deleteWs };

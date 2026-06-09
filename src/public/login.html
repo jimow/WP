@@ -86,9 +86,11 @@
     function show(which) { for (const k in forms) $(forms[k]).classList.toggle('hide', k !== which); $('#msg').className = 'msg'; }
     function msg(text, ok) { const m = $('#msg'); m.textContent = text; m.className = 'msg ' + (ok ? 'ok' : 'err'); }
     async function post(path, body) {
-      const r = await fetch('/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let r;
+      try { r = await fetch('/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+      catch { throw new Error('Can’t reach the server. Make sure the app is running and you’re on the correct URL/port (e.g. http://localhost:' + location.port + ').'); }
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || 'Something went wrong');
+      if (!r.ok) throw new Error(d.error || `Request failed (HTTP ${r.status}).`);
       return d;
     }
     // Decide initial screen: reset link → reset; first run → register (super
@@ -108,7 +110,7 @@
 
     $('#loginForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/login', { email: $('#li_email').value, password: $('#li_pass').value }); location.href = '/'; } catch (err) { msg(err.message); } };
     $('#registerForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/register', { name: $('#rg_name').value, email: $('#rg_email').value, password: $('#rg_pass').value }); location.href = '/'; } catch (err) { msg(err.message); } };
-    $('#forgotForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/forgot', { email: $('#fg_email').value }); msg('If that email exists, a reset link has been created (check your notifications webhook or the server log).', true); } catch (err) { msg(err.message); } };
+    $('#forgotForm').onsubmit = async (e) => { e.preventDefault(); try { const r = await post('/auth/forgot', { email: $('#fg_email').value }); msg(r && r.emailDelivery === 'email' ? 'If that email is registered, a password-reset link is on its way — check your inbox (and spam).' : 'If that email is registered, a reset link was created. No email service is connected, so check the server log for the link.', true); } catch (err) { msg(err.message); } };
     $('#resetForm').onsubmit = async (e) => { e.preventDefault(); try { await post('/auth/reset', { token: resetToken, password: $('#rs_pass').value }); location.href = '/'; } catch (err) { msg(err.message); } };
   </script>
 </body>

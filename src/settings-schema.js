@@ -9,6 +9,13 @@
 
 export const SCHEMA = [
   {
+    group: 'App mode',
+    help: 'Single-tenant mode runs the whole app for ONE user using one shared set of settings (WordPress, Search Console, AI, etc.) — no per-owner workspaces or data isolation. Turn this ON to keep things simple. OFF = multi-tenant SaaS (each registered owner connects their own site). Changing it takes effect on the next request.',
+    fields: [
+      { key: 'single_tenant', label: 'Single-tenant mode (one user, shared settings)', type: 'toggle', default: 'false', env: 'SINGLE_TENANT' },
+    ],
+  },
+  {
     group: 'Connections — WordPress',
     fields: [
       { key: 'wp_base_url', label: 'Site URL', type: 'text', default: '', placeholder: 'https://yoursite.com', env: 'WP_BASE_URL' },
@@ -48,6 +55,15 @@ export const SCHEMA = [
       { label: '⬇ Restore', fn: 'supabaseRestore' },
       { label: 'Download schema SQL', fn: 'supabaseSchema' },
     ],
+  },
+  {
+    group: 'Email (Resend) — password resets & notices',
+    help: 'Send transactional email (e.g. password-reset links) via Resend (resend.com). Get an API key at resend.com → API Keys, and set a “from” address on a domain you verified there. For quick testing Resend allows onboarding@resend.dev (only emails your own Resend-account address).',
+    fields: [
+      { key: 'resend_api_key', label: 'Resend API key', type: 'password', default: '', secret: true, env: 'RESEND_API_KEY' },
+      { key: 'resend_from', label: 'From address', type: 'text', default: '', placeholder: 'WP Autopilot <noreply@yourdomain.com>', env: 'RESEND_FROM' },
+    ],
+    actions: [{ label: '✉ Send test email', fn: 'resendTest' }],
   },
   {
     group: 'Connections — Google Search Console',

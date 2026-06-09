@@ -29,6 +29,7 @@ import indexview from '../services/indexview.js';
 import interlink from '../services/interlink.js';
 import distribute from '../services/distribute.js';
 import supabase from '../clients/supabase.js';
+import resend from '../clients/resend.js';
 import backup from '../services/backup.js';
 import auth from '../auth.js';
 import tenancy from '../tenancy.js';
@@ -60,12 +61,26 @@ router.post('/auth/login', wrap((req, res) => {
 router.post('/auth/logout', wrap((req, res) => { clearSession(res); res.json({ ok: true }); }));
 router.post('/auth/forgot', wrap(async (req, res) => {
   const r = auth.startReset((req.body || {}).email);
+  let emailed = false;
   if (r) {
-    const link = `${req.protocol}://${req.get('host')}/?reset=${r.token}`;
+    // Point at the login page's reset form (the gate serves marketing at "/").
+    const link = `${req.protocol}://${req.get('host')}/login.html?reset=${r.token}`;
     log.info('auth', `Password reset link for ${r.email}: ${link}`);
-    try { await distribute.notify('password-reset', `Password reset requested for ${r.email}: ${link}`, { level: 'warn' }); } catch { /* ignore */ }
+    if (resend.configured()) {
+      try { await resend.sendPasswordReset(r.email, link, { name: r.name }); emailed = true; }
+      catch (e) { log.warn('auth', `Resend reset email failed: ${e.message}`); }
+    }
+    if (!emailed) { try { await distribute.notify('password-reset', `Password reset requested for ${r.email}: ${link}`, { level: 'warn' }); } catch { /* ignore */ } }
   }
-  res.json({ ok: true }); // never reveal whether the email exists
+  // Never reveal whether the email exists; `emailDelivery` tells the UI what to say.
+  res.json({ ok: true, emailDelivery: resend.configured() ? 'email' : 'manual' });
+}));
+// Send a Resend test email (super-admin only) to confirm the integration.
+router.post('/resend/test', wrap(async (req, res) => {
+  const to = (req.body && req.body.to) || (req.user && req.user.email);
+  if (!to) throw new Error('No recipient — provide an email or sign in.');
+  const out = await resend.test(to);
+  res.json({ ok: true, id: out.id, to });
 }));
 router.post('/auth/reset', wrap((req, res) => {
   const u = auth.resetPassword(req.body || {});
@@ -318,7 +333,14 @@ router.get('/distribute/status', wrap((req, res) => res.json(distribute.status()
 router.post('/distribute/test', wrap(async (req, res) => res.json(await distribute.notify('test', 'Test notification from WP Autopilot ✅', { level: 'info' }))));
 
 // ---- Supabase: cloud persistence + multi-tenant foundation ----------------
-router.get('/supabase/status', wrap((req, res) => res.json(backup.status())));
+router.get('/supabase/status', wrap(async (req, res) => res.json({ ...backup.status(), schemaReady: await backup.schemaReady() })));
+// Generated first-class schema SQL (one table per entity) for the SQL editor.
+router.get('/supabase/schema-sql', wrap(async (req, res) => {
+  const { schemaSql } = await import('../services/cloudschema.js');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="wp-autopilot-supabase-schema.sql"');
+  res.send(schemaSql());
+}));
 router.post('/supabase/test', wrap(async (req, res) => res.json(await supabase.ping())));
 router.post('/supabase/backup', wrap(async (req, res) => res.json(await backup.run())));
 router.post('/supabase/restore', wrap(async (req, res) => res.json(await backup.restore())));

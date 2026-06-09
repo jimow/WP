@@ -24,6 +24,10 @@ export const GLOBAL_KEYS = new Set([
   'supabase_url', 'supabase_service_key', 'supabase_anon_key',
   'supabase_workspace_id', 'supabase_auto_backup', 'supabase_last_backup',
   'supabase_primary',
+  // Platform email (Resend) — one config for the whole install.
+  'resend_api_key', 'resend_from',
+  // App mode flag.
+  'single_tenant',
 ]);
 
 export function isGlobalKey(key) { return GLOBAL_KEYS.has(key); }

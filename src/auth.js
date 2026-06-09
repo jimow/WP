@@ -85,7 +85,7 @@ export function startReset(email) {
   const token = crypto.randomBytes(24).toString('hex');
   const hash = crypto.createHash('sha256').update(token).digest('hex');
   db.prepare("UPDATE users SET reset_token=?, reset_expires=datetime('now','+1 hour') WHERE id=?").run(hash, u.id);
-  return { token, email: u.email };
+  return { token, email: u.email, name: u.name };
 }
 export function resetPassword({ token, password } = {}) {
   if (!password || String(password).length < 8) throw new Error('Password must be at least 8 characters.');
@@ -99,11 +99,20 @@ export function resetPassword({ token, password } = {}) {
 export function publicUser(u) {
   return u ? { id: u.id, email: u.email, name: u.name, role: u.role, workspace_id: u.workspace_id, isSuperAdmin: u.role === 'super_admin' } : null;
 }
+// Single-tenant mode: the whole app runs for ONE user against the shared admin
+// settings + the 'admin' content store — multitenancy off.
+export function singleTenant() {
+  if (process.env.SINGLE_TENANT === '1') return true;
+  try { return cfg.getBool('single_tenant'); } catch { return false; }
+}
 export function ctxFor(u) {
+  // In single-tenant mode every signed-in user operates as the admin (global
+  // settings + 'admin' workspace), so there are no per-owner workspaces.
+  if (singleTenant()) return { userId: u.id, workspaceId: 'admin', role: 'super_admin', isSuperAdmin: true };
   return { userId: u.id, workspaceId: u.workspace_id, role: u.role, isSuperAdmin: u.role === 'super_admin' };
 }
 export function listUsers() {
   return db.prepare('SELECT id,email,name,role,workspace_id,created_at,last_login FROM users ORDER BY id').all();
 }
 
-export default { userCount, authActive, register, login, startReset, resetPassword, makeSession, userFromToken, publicUser, ctxFor, listUsers };
+export default { userCount, authActive, singleTenant, register, login, startReset, resetPassword, makeSession, userFromToken, publicUser, ctxFor, listUsers };

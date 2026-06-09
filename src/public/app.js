@@ -22,11 +22,16 @@ const api = {
   async req(method, path, body) {
     progStart();
     try {
-      const res = await fetch('/api' + path, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      let res;
+      try {
+        res = await fetch('/api' + path, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      } catch {
+        throw new Error(`Can’t reach the server — is the app running on this URL/port (http://localhost:${location.port})? It may have restarted on a different port.`);
+      }
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 && data.authRequired) { location.href = '/'; throw new Error('Sign in required'); }
       if (!res.ok) throw new Error(data.error || res.statusText);
@@ -3138,7 +3143,14 @@ window.supabaseRestore = async () => {
   try { const r = await api.post('/supabase/restore'); t.done(`Restored ${r.total} record(s)`); }
   catch (e) { t.fail(e.message); }
 };
-window.supabaseSchema = () => { window.open('/supabase-schema.sql', '_blank'); };
+window.supabaseSchema = () => { window.open('/api/supabase/schema-sql', '_blank'); };
+window.resendTest = async () => {
+  const to = prompt('Send a test email to which address?', (currentUser && currentUser.email) || '');
+  if (!to) return;
+  const t = toast('Sending test email via Resend…', 'loading');
+  try { const r = await api.post('/resend/test', { to }); t.done(`Sent ✓ to ${r.to} (id ${r.id || '?'})`, 'success'); }
+  catch (e) { t.fail(e.message); }
+};
 
 // ---- Settings -------------------------------------------------------------
 // Settings is fully schema-driven — the form is generated from /settings/schema,
