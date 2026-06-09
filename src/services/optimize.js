@@ -9,6 +9,25 @@ import db from '../db.js';
 import log from '../log.js';
 import articles from './articles.js';
 import seo from './seo.js';
+import themeintel from './themeintel.js';
+import postintel from './postintel.js';
+
+// The active theme's primary colour, for accenting the rich presentation blocks.
+function themePrimary() {
+  const tp = themeintel.profile();
+  return (tp?.palette || []).find((c) => /primary|accent|brand/i.test(c.name))?.hex || tp?.tokens?.colors?.[0] || '#2563eb';
+}
+
+// Delimited output spec — keeps the (HTML/LaTeX) body OUTSIDE of JSON so big
+// posts never trigger "Unterminated string in JSON" / bad-escape errors. Parsed
+// by ai.doc() which tolerates truncation and unescaped characters.
+const DOC_SPEC = `Respond in EXACTLY this two-block format — a short JSON metadata block, then a RAW content block:
+<<<META
+{"summary":"1-2 lines on what you changed"}
+META>>>
+<<<CONTENT
+(the FULL WordPress Gutenberg block markup goes here, raw — write HTML and LaTeX normally, do NOT escape backslashes or quotes, do NOT wrap it in JSON)
+CONTENT>>>`;
 
 const round = (n) => Math.round(n * 10) / 10;
 
@@ -137,17 +156,18 @@ export async function prepareRefresh(url, days = 28) {
   const title = post.title?.raw || post.title?.rendered || '';
   const content = post.content?.raw || post.content?.rendered || '';
 
-  const out = await ai.json({
-    system: 'You are an expert SEO editor refreshing existing content to rank higher. Preserve correct facts and existing internal links; improve depth, structure, freshness and coverage of the near-ranking queries. Output WordPress Gutenberg block markup.',
-    prompt: `Refresh and expand this article so it can move from page 2 to page 1. Add sections/answers for the near-ranking queries below, improve headings and internal linking, and update anything stale. Keep the same topic and URL.
+  const richKit = cfg.getBool('rich_presentation') ? seo.presentationKit(themePrimary()) : '';
+  const out = await ai.doc({
+    system: 'You are an expert SEO editor refreshing existing content to rank higher. Preserve correct facts and existing internal links; improve depth, structure, freshness and coverage of the near-ranking queries. Make it visually engaging with varied styled components. Output WordPress Gutenberg block markup.',
+    prompt: `Refresh and expand this article so it can move from page 2 to page 1. Add sections/answers for the near-ranking queries below, improve headings and internal linking, update anything stale, and upgrade the visual presentation. Keep the same topic and URL.
 Title: ${title}
 Near-ranking queries to satisfy:
 ${qList}
 
 Current content:
 ${content.slice(0, 12000)}
-
-Return JSON {"content":"<improved full Gutenberg block markup>","summary":"1-2 lines on what you changed"}`,
+${richKit ? `\n${richKit}\n` : ''}
+${DOC_SPEC}`,
     maxTokens: 9000,
   });
 
@@ -159,6 +179,79 @@ Return JSON {"content":"<improved full Gutenberg block markup>","summary":"1-2 l
     gain: 0, status: 'prepared', note: out.summary || null,
   });
   log.info('optimize', `Prepared content refresh for ${url}`);
+  return getOptimization(info.lastInsertRowid);
+}
+
+// FULL REGENERATE of an existing WordPress post — rewrite it to a best-in-class
+// article: keep the topic/keyword/URL, fold in the live SERP content-gap analysis
+// (if we have one), apply the rich presentation components, tune density &
+// readability and add internal links. Produces a reviewable before/after you can
+// apply to the live post (or save). Uses the delimited ai.doc format (no JSON
+// breakage on big posts).
+export async function prepareRegenerate(url) {
+  const post = await wp.findByUrl(url);
+  const postType = post.kind === 'page' ? 'pages' : 'posts';
+  const title = post.title?.raw || post.title?.rendered || '';
+  const content = post.content?.raw || post.content?.rendered || '';
+  if (!content) throw new Error('That post has no readable content to regenerate.');
+  let kw = '';
+  try { kw = (await wp.getRankMath(post.id, postType)).focusKeyword || ''; } catch { /* meta not exposed */ }
+  if (!kw) kw = (post.slug || '').replace(/-/g, ' ').trim();
+
+  // Fold in the saved Google top-10 content-gap analysis for this URL, if any.
+  let gapBlock = '';
+  const an = postintel.getLatest({ url });
+  if (an) {
+    const edits = [
+      ...(an.improvements || []).map((i) => `ADD a section "${i.heading}": ${i.what}`),
+      ...(an.contentGaps || []).map((g) => `COVER: ${g}`),
+      ...((an.missingEntities || []).length ? [`MENTION where relevant: ${(an.missingEntities || []).join(', ')}`] : []),
+    ].filter(Boolean).slice(0, 14);
+    if (edits.length) gapBlock = `\nThe live Google top-10 cover these that THIS page lacks — incorporate them:\n${edits.map((e, i) => `${i + 1}. ${e}`).join('\n')}`;
+    if (an.targetWordCount) gapBlock += `\nAim for roughly ${an.targetWordCount} words (competitors average ${an.avgCompetitorWords || '?'}).`;
+  }
+
+  // Real internal-link targets (other published posts on the site).
+  let linkHints = '';
+  try {
+    const terms = kw.split(/\s+/).slice(0, 3).join(' ');
+    const r = await wp.browse('posts', { search: terms, per_page: 6, status: 'publish', context: 'view' });
+    const links = (r.items || []).map((p) => `- ${p.title?.rendered || ''}: ${p.link}`).filter((x) => !x.includes(url));
+    if (links.length) linkHints = `\nWeave ${cfg.getInt('seo_internal_links', 3)} WORKING internal links using these EXACT URLs (real <a href>):\n${links.slice(0, 8).join('\n')}`;
+  } catch { /* WP may be blocked */ }
+
+  const richKit = cfg.getBool('rich_presentation') ? seo.presentationKit(themePrimary()) : '';
+  const out = await ai.doc({
+    system: 'You are an expert SEO writer REGENERATING an existing article to a much higher standard. Keep the same topic, focus keyword and URL; keep correct facts and existing internal links; rewrite for depth, clarity, structure, freshness and engagement so it scores 90+ on Rank Math. Output WordPress Gutenberg block markup.',
+    prompt: `Fully regenerate and upgrade this existing post into a best-in-class article for the focus keyword "${kw}".
+Title: ${title}
+${gapBlock}${linkHints}
+
+Follow EVERY Rank Math requirement:
+${seo.requirements({})}
+${themeintel.designGuidance()}
+${richKit ? `\n${richKit}\n` : ''}
+Current content (rewrite and EXPAND — improve everything, don't just copy):
+${content.slice(0, 14000)}
+
+${DOC_SPEC}`,
+    maxTokens: 9000,
+  });
+
+  const newContent = out.content || '';
+  if (!newContent || newContent.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length < 200) {
+    throw new Error('Regeneration produced too little content — post left unchanged.');
+  }
+  const before = seo.score({ title, slug: post.slug || '', content, focusKeyword: kw });
+  const after = seo.score({ title, slug: post.slug || '', content: newContent, focusKeyword: kw });
+  const info = insertOpt.run({
+    type: 'regenerate', url, query: kw, post_id: post.id, post_type: post.kind,
+    metrics: JSON.stringify({ keyword: kw, scoreBefore: before.score, scoreAfter: after.score, wordsBefore: before.words, wordsAfter: after.words, usedGapAnalysis: !!an }),
+    before: JSON.stringify({ title, content }),
+    after: JSON.stringify({ content: newContent }),
+    gain: 0, status: 'prepared', note: out.summary || `Full regenerate · Rank Math ${before.score}→${after.score}, ${before.words}→${after.words} words`,
+  });
+  log.info('optimize', `Regenerated ${url} (Rank Math ${before.score}→${after.score}, ${before.words}→${after.words} words)`);
   return getOptimization(info.lastInsertRowid);
 }
 
@@ -185,14 +278,14 @@ export async function prepareDestuff(url) {
   }
   const budget = Math.max(4, Math.round((densTarget / 100) * before.words));
 
-  const out = await ai.json({
+  const out = await ai.doc({
     system: 'You are an SEO editor fixing keyword over-optimisation (stuffing). Reduce how often the EXACT focus-keyword phrase appears by replacing most occurrences with natural synonyms, pronouns ("it", "this method") and related terms. PRESERVE every fact, section, heading, list, link and image and keep the SAME overall length — only change wording. Output valid WordPress Gutenberg block markup.',
     prompt: `The focus keyword "${kw}" currently appears ${before.kwCount} times (${before.density}% density) in a ${before.words}-word post — that's keyword stuffing. Rewrite so the EXACT phrase "${kw}" appears about ${budget} times total (~${densTarget}% density), no fewer than ${Math.max(4, budget - 2)}. Do NOT shorten or remove content.
 
-Return JSON {"content":"<full Gutenberg block markup, complete>","summary":"one line on what changed"}.
-
 Current content:
-${content.slice(0, 22000)}`,
+${content.slice(0, 22000)}
+
+${DOC_SPEC}`,
     maxTokens: 9000,
   });
 
@@ -271,4 +364,4 @@ export function dismiss(id) {
   return { ok: true };
 }
 
-export default { scan, prepareCtr, prepareRefresh, prepareDestuff, gapToIdea, listOptimizations, getOptimization, apply, dismiss };
+export default { scan, prepareCtr, prepareRefresh, prepareRegenerate, prepareDestuff, gapToIdea, listOptimizations, getOptimization, apply, dismiss };

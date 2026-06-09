@@ -87,8 +87,17 @@ RULES: the META block must be VALID JSON containing NO HTML/LaTeX (keep it on on
 // published) accented with the active theme's primary colour. Injected into the
 // generation prompt so every article reads like a polished magazine piece.
 export function presentationKit(pri = '#2563eb') {
+  const style = (cfg.get('presentation_style') || 'rich').toLowerCase();
+  const guide = style === 'minimal'
+    ? 'Use 3–4 of these components, sparingly — keep it clean.'
+    : style === 'standard'
+      ? 'Use 5–7 of these components where they genuinely help the reader.'
+      : 'Use a RICH variety (8–11 different component types) for a polished, magazine-quality layout — vary them so no two adjacent sections look the same.';
   return `
-PRESENTATION — make the article visually engaging so readers love it and stay. Use these READY-MADE components (each is a wp:html block with inline styles — copy the structure, fill with REAL on-brand copy, never placeholders). Accent colour = ${pri}. Weave them naturally through the piece (don't pile them up); keep Quick Answer + Key Takeaways near the top.
+PRESENTATION — make the article visually engaging so readers love it and stay. ${guide} Each is a wp:html block with inline styles — copy the structure, fill with REAL on-brand copy, never placeholders. Accent colour = ${pri}. Weave them naturally through the piece (don't pile them up); keep TL;DR / Quick Answer / Key Takeaways near the top.
+
+• TL;DR SUMMARY (very top — one sentence summing up the whole article):
+<!-- wp:html --><div style="background:${pri}0d;border-left:4px solid ${pri};border-radius:8px;padding:12px 16px;margin:16px 0;font-size:15px"><strong style="color:${pri}">⚡ TL;DR:</strong> …</div><!-- /wp:html -->
 
 • QUICK ANSWER (right after the intro — a direct 2–3 sentence answer, great for featured snippets):
 <!-- wp:html --><div style="background:#f4f8ff;border:1px solid ${pri};border-left:5px solid ${pri};border-radius:10px;padding:16px 20px;margin:20px 0"><strong style="color:${pri}">✅ Quick answer:</strong> …</div><!-- /wp:html -->
@@ -122,6 +131,21 @@ PRESENTATION — make the article visually engaging so readers love it and stay.
 
 • EXPERT-STYLE INSIGHT (first-hand practitioner note, builds E-E-A-T):
 <!-- wp:html --><div style="background:#f5f3ff;border-left:4px solid ${pri};border-radius:10px;padding:14px 18px;margin:18px 0"><strong>🎯 From experience:</strong> …</div><!-- /wp:html -->
+
+• INFO / NOTE (neutral informational aside — distinct from a tip):
+<!-- wp:html --><div style="background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #3b82f6;border-radius:10px;padding:14px 18px;margin:18px 0"><strong style="color:#1d4ed8">ℹ️ Note:</strong> …</div><!-- /wp:html -->
+
+• IMPORTANT / HIGHLIGHT (amber — something the reader must not miss):
+<!-- wp:html --><div style="background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #f59e0b;border-radius:10px;padding:14px 18px;margin:18px 0"><strong style="color:#b45309">⭐ Important:</strong> …</div><!-- /wp:html -->
+
+• DEFINITION BOX (define a key term/jargon in plain English):
+<!-- wp:html --><div style="background:#f8fafc;border:1px dashed ${pri};border-radius:10px;padding:14px 18px;margin:18px 0"><strong style="color:${pri}">📖 Definition — Term:</strong> a clear, plain-English definition.</div><!-- /wp:html -->
+
+• PROS & CONS (two columns — great for comparisons/decisions):
+<!-- wp:html --><div style="display:flex;gap:14px;flex-wrap:wrap;margin:20px 0"><div style="flex:1;min-width:200px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px 18px"><p style="margin:0 0 8px;font-weight:700;color:#047857">✅ Pros</p><ul style="margin:0;padding-left:18px;line-height:1.9"><li>…</li></ul></div><div style="flex:1;min-width:200px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 18px"><p style="margin:0 0 8px;font-weight:700;color:#b91c1c">❌ Cons</p><ul style="margin:0;padding-left:18px;line-height:1.9"><li>…</li></ul></div></div><!-- /wp:html -->
+
+• WORKED EXAMPLE (show a concrete example with real numbers/steps):
+<!-- wp:html --><div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px 20px;margin:20px 0"><p style="margin:0 0 8px;font-weight:700;color:#6d28d9">🧪 Worked example</p><div style="font-size:15px">…</div></div><!-- /wp:html -->
 
 • RELATED READING CARD (near the end — put 2–3 of the REAL internal-link URLs here, AND also weave 2–3 of those links inline within sentences where contextually relevant):
 <!-- wp:html --><div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:18px 22px;margin:26px 0"><p style="margin:0 0 10px;font-weight:700">📚 Keep reading</p><ul style="margin:0;padding-left:20px;line-height:2"><li><a href="REAL_INTERNAL_URL" style="color:${pri}">descriptive anchor</a></li></ul></div><!-- /wp:html -->

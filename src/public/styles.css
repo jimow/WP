@@ -120,6 +120,23 @@ nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .nav-item:active { transform: translateY(1px); }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: inset 2px 0 0 var(--accent); }
 .nav-sep { height: 1px; background: var(--border-soft); margin: 9px 12px; }
+.nav-group { font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 13px 14px 5px; }
+.nav-group:first-child { padding-top: 4px; }
+.nav-item small { display: block; font-size: 10.5px; font-weight: 500; color: var(--muted); margin-top: 1px; letter-spacing: 0; }
+.nav-item.active small { color: var(--accent); opacity: .8; }
+
+/* Lifecycle "flow" pipeline — shows how the stages connect. */
+.flow-card { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-soft); }
+.flow { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+.flow-step { flex: 1; min-width: 110px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 10px; text-align: center; cursor: pointer; font: inherit; transition: border-color .15s var(--ease), transform .12s var(--ease), background .15s var(--ease); }
+.flow-step:hover { border-color: var(--accent); transform: translateY(-2px); }
+.flow-step.on { border-color: var(--accent); background: var(--accent-soft); }
+.flow-ic { font-size: 22px; line-height: 1; }
+.flow-n { font-size: 10px; font-weight: 700; color: var(--muted); }
+.flow-lbl { font-weight: 700; font-size: 14px; margin-top: 4px; color: var(--text); }
+.flow-desc { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+.flow-arrow { align-self: center; color: var(--muted); font-size: 18px; flex: 0 0 auto; }
+@media (max-width: 760px) { .flow-arrow { display: none; } .flow-step { min-width: 44%; } }
 .sidebar-foot { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); padding: 14px 6px 2px; border-top: 1px solid var(--border-soft); }
 
 /* ---- Content / topbar ---------------------------------------------------- */
@@ -200,6 +217,23 @@ tr:hover td { background: var(--panel-2); }
 .table-scroll { max-height: 62vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .table-scroll table { font-size: 13px; }
 .table-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-elev); box-shadow: inset 0 -1px 0 var(--border); }
+/* Segmented control (e.g. date-range selector like GSC). */
+.seg { display: inline-flex; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 3px; gap: 2px; }
+.seg-btn { border: 0; background: transparent; color: var(--text-dim); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: var(--radius-pill); cursor: pointer; white-space: nowrap; }
+.seg-btn.on { background: var(--accent); color: #fff; }
+.seg-btn:hover:not(.on) { color: var(--text); }
+/* Constrain long cell text (e.g. a multi-word Rank Math focus keyword) so the
+   table can't blow out horizontally — full text shows on hover (title attr). */
+.cell-ellipsis { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+@media (max-width: 1100px) { .cell-ellipsis { max-width: 140px; } }
+/* Pager with numbered pages. */
+.pager { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 12px 2px; }
+.pager .pg { min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text-dim); border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; }
+.pager .pg:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.pager .pg.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.pager .pg:disabled { opacity: .4; cursor: default; }
+.pager .pg-ell { color: var(--muted); padding: 0 2px; }
+.pager input.pg-jump { width: 52px; height: 32px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); border-radius: 8px; text-align: center; font: inherit; }
 /* A clickable title that opens a detail view. */
 .title-link { color: var(--text); font-weight: 600; cursor: pointer; text-decoration: none; }
 .title-link:hover { color: var(--accent); text-decoration: underline; }

@@ -9,8 +9,11 @@ import { defaultsFromSchema, secretsFromSchema, envMap } from './settings-schema
 // Defaults come from the declarative schema; .env overrides apply for keys that
 // declare an env var. This is the single place behavior defaults are resolved.
 const DEFAULTS = defaultsFromSchema();
+// Track which keys actually got their default from a present .env var, so the UI
+// can show the user exactly where each value comes from.
+const ENV_PRESENT = new Set();
 for (const [key, envName] of Object.entries(envMap())) {
-  if (process.env[envName]) DEFAULTS[key] = process.env[envName];
+  if (process.env[envName]) { DEFAULTS[key] = process.env[envName]; ENV_PRESENT.add(key); }
 }
 
 const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
@@ -90,4 +93,26 @@ export function isSecret(key) {
   return SECRET_KEYS.has(key);
 }
 
-export default { get, getBool, getInt, set, all, publicAll, isSecret, DEFAULTS };
+// Where does the EFFECTIVE value for `key` come from, in the current context?
+//   'dashboard' — saved in the Settings DB (overrides .env)
+//   'env'       — coming from a .env variable
+//   'default'   — neither set; using the built-in default
+export function sourceOf(key) {
+  const ctx = tenancy.current();
+  if (!ctx || ctx.isSuperAdmin || tenancy.isGlobalKey(key)) {
+    const row = getStmt.get(key);
+    if (row && row.value !== null && row.value !== '') return 'dashboard';
+  } else {
+    const row = tGetStmt.get(ctx.workspaceId, key);
+    if (row && row.value !== null && row.value !== '') return 'dashboard';
+  }
+  if (ENV_PRESENT.has(key)) return 'env';
+  return 'default';
+}
+export function sources() {
+  const out = {};
+  for (const k of Object.keys(DEFAULTS)) out[k] = sourceOf(k);
+  return out;
+}
+
+export default { get, getBool, getInt, set, all, publicAll, isSecret, sourceOf, sources, DEFAULTS };

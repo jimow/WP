@@ -184,6 +184,28 @@ ${seo.OUTPUT_SPEC}`,
   return { ok: true, applied: edits.length, seo_score: score };
 }
 
+// Autonomous step (called by the 24/7 pipeline): pick published articles whose
+// SERP content-gap analysis is MISSING or STALE and (re)analyze a few of them,
+// so every existing page gets continuously compared against the live Google
+// top-10 over time — no manual action. Rate-limited; skips on errors.
+export async function autoAnalyzeDue({ limit = 2, intervalDays = 30 } = {}) {
+  const due = db.prepare(`
+    SELECT a.id FROM articles a
+    LEFT JOIN post_analyses pa ON pa.target_ref = 'article:' || a.id
+    WHERE a.status='published' AND a.wp_url IS NOT NULL
+      AND COALESCE(NULLIF(TRIM(a.focus_keyword),''), NULLIF(TRIM(a.keyword),'')) IS NOT NULL
+      AND (pa.created_at IS NULL OR pa.created_at < datetime('now', ?))
+    ORDER BY (pa.created_at IS NULL) DESC, COALESCE(pa.created_at,'') ASC
+    LIMIT ?`).all(`-${Math.max(1, intervalDays)} days`, Math.max(1, limit));
+  let analyzed = 0; const errors = [];
+  for (const { id } of due) {
+    try { await analyze({ articleId: id }); analyzed++; }
+    catch (e) { errors.push(`#${id}: ${e.message}`); log.warn('postintel', `auto-analyze #${id}: ${e.message}`); }
+  }
+  if (analyzed) log.info('postintel', `auto-analyzed ${analyzed} existing page(s) vs the Google top-10`);
+  return { analyzed, considered: due.length, errors };
+}
+
 // Deterministically insert internal links into a draft or a live post.
 export async function insertInternalLinks(target, links = []) {
   const t = await resolveTarget(target);
@@ -215,4 +237,4 @@ export async function insertInternalLinks(target, links = []) {
   return { inlined, related: related.length, total: inlined + related.length };
 }
 
-export default { analyze, getLatest, applyImprovements, insertInternalLinks };
+export default { analyze, getLatest, applyImprovements, autoAnalyzeDue, insertInternalLinks };

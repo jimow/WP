@@ -18,6 +18,24 @@ function creds() {
   return { base, auth };
 }
 
+// A realistic browser UA — some hosts soft-block obvious bot agents.
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+// Detect a HOST/CDN bot-protection "checking your browser" challenge (Hostinger
+// hCDN, Cloudflare, Sucuri…) so we can tell the user it's infrastructure — NOT
+// their WordPress credentials. Returns a clear message, or null.
+export function botChallengeMessage(res, text) {
+  const server = (res.headers.get('server') || '').toLowerCase();
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  const html = ct.includes('text/html');
+  const challengeText = /just a moment|checking your browser|enable javascript|cf-browser-verification|attention required|sucuri|cloudflare/i.test(text || '');
+  if ((html && challengeText) || ((res.status === 403 || res.status === 503) && /hcdn|cloudflare|sucuri/.test(server) && html)) {
+    const who = /hcdn/.test(server) ? "Hostinger's CDN" : /cloudflare/.test(server) ? 'Cloudflare' : /sucuri/.test(server) ? 'Sucuri' : 'your host/CDN';
+    return `Blocked by ${who} bot protection — NOT a WordPress or password problem. The host returned a "checking your browser" challenge (HTTP ${res.status}) on the REST API, so the request never reached WordPress. Fix on the host (not here): disable the CDN/bot-protection for this site, or allowlist the "/wp-json/" path (or this server's IP). On Hostinger: hPanel → Websites → CDN → turn it off, or ask Hostinger support to "allow REST API access at /wp-json/ through the CDN bot protection."`;
+  }
+  return null;
+}
+
 async function wpFetch(pathname, { method = 'GET', body, query } = {}) {
   const { base, auth } = creds();
   let url = `${base}/wp-json/wp/v2${pathname}`;
@@ -30,6 +48,7 @@ async function wpFetch(pathname, { method = 'GET', body, query } = {}) {
     headers: {
       Authorization: `Basic ${auth}`,
       'Content-Type': 'application/json',
+      'User-Agent': BROWSER_UA,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -37,6 +56,8 @@ async function wpFetch(pathname, { method = 'GET', body, query } = {}) {
   let data;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
+    const challenge = botChallengeMessage(res, text);
+    if (challenge) throw new Error(challenge);
     const msg = data && data.message ? data.message : `${res.status} ${res.statusText}`;
     if (res.status === 401) {
       throw new Error(`WordPress rejected the credentials (401): "${msg}". Check the Username is the exact login name and the Application Password belongs to that same user (generate a fresh one if unsure).`);
@@ -263,10 +284,13 @@ export const wp = {
         if (s) q.append('status[]', s);
       }
     }
-    const res = await fetch(`${base}/wp-json/wp/v2/${type}?${q}`, { headers: { Authorization: `Basic ${auth}` } });
+    const res = await fetch(`${base}/wp-json/wp/v2/${type}?${q}`, { headers: { Authorization: `Basic ${auth}`, 'User-Agent': BROWSER_UA } });
     const text = await res.text();
     let data; try { data = text ? JSON.parse(text) : []; } catch { data = []; }
-    if (!res.ok) throw new Error(`WP ${type} list failed: ${data?.message || res.status}`);
+    if (!res.ok) {
+      const challenge = botChallengeMessage(res, text);
+      throw new Error(challenge || `WP ${type} list failed: ${data?.message || res.status}`);
+    }
     return {
       items: data,
       total: +(res.headers.get('X-WP-Total') || data.length || 0),

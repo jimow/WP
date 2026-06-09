@@ -25,6 +25,7 @@ import replenish from '../services/replenish.js';
 import calendar from '../services/calendar.js';
 import ranktrack from '../services/ranktrack.js';
 import indexmon from '../services/indexmon.js';
+import indexview from '../services/indexview.js';
 import interlink from '../services/interlink.js';
 import distribute from '../services/distribute.js';
 import supabase from '../clients/supabase.js';
@@ -138,8 +139,9 @@ router.post('/test/ai', wrap(async (req, res) => {
 // The dashboard renders its entire settings UI from this schema (no hard-coded
 // form) so every owner-configurable behavior lives in one declarative place.
 router.get('/settings/schema', wrap((req, res) => {
-  // Annotate each field as shared (all tenants) or per-tenant so the UI can show it.
-  const annotated = SCHEMA.map((g) => ({ ...g, fields: g.fields.map((f) => ({ ...f, scope: tenancy.isGlobalKey(f.key) ? 'shared' : 'tenant' })) }));
+  // Annotate each field as shared (all tenants) or per-tenant, AND where its
+  // effective value comes from (dashboard / .env / default) so the UI can show it.
+  const annotated = SCHEMA.map((g) => ({ ...g, fields: g.fields.map((f) => ({ ...f, scope: tenancy.isGlobalKey(f.key) ? 'shared' : 'tenant', source: cfg.sourceOf(f.key) })) }));
   res.json(annotated);
 }));
 router.get('/settings', wrap((req, res) => res.json(cfg.publicAll())));
@@ -290,6 +292,19 @@ router.get('/ranktrack/trends', wrap((req, res) => res.json(ranktrack.trends({ l
 router.post('/ranktrack/snapshot', wrap(async (req, res) => res.json(await ranktrack.snapshot({ force: !!req.body?.force }))));
 
 // ---- Index monitoring -----------------------------------------------------
+// Aggregated index + performance view of the site's existing pages — LIVE GSC
+// performance for the chosen range + real index verdicts (two tabs).
+router.get('/index/overview', wrap(async (req, res) => res.json(await indexview.overview({ range: req.query.range }))));
+// Live URL Inspection of several URLs at once (the "check now" action).
+router.post('/index/check', wrap(async (req, res) => {
+  const urls = Array.isArray(req.body?.urls) ? req.body.urls.slice(0, 20) : [];
+  const results = [];
+  for (const url of urls) {
+    try { results.push({ url, ...(await indexmon.check(url)) }); }
+    catch (e) { results.push({ url, error: e.message }); }
+  }
+  res.json({ checked: results.filter((r) => !r.error).length, results });
+}));
 router.get('/indexmon/summary', wrap((req, res) => res.json(indexmon.summary())));
 router.get('/indexmon/list', wrap((req, res) => res.json(indexmon.list())));
 router.post('/indexmon/check', wrap(async (req, res) => res.json(await indexmon.check(req.body.url))));
@@ -317,12 +332,30 @@ router.get('/gsc/status', wrap((req, res) => res.json({
 })));
 router.get('/gsc/auth-url', wrap((req, res) => res.json({ url: gsc.authUrl(redirectUri(req)) })));
 router.get('/gsc/callback', wrap(async (req, res) => {
-  if (req.query.error) return res.send(`<p>Authorisation failed: ${esc(req.query.error)}. You can close this tab.</p>`);
-  await gsc.exchangeCode(req.query.code, redirectUri(req));
-  log.info('gsc', 'connected to Search Console');
-  res.send(`<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;background:#0f1216;color:#e7edf3;text-align:center;padding:60px">
-    <h2>✅ Search Console connected</h2><p>You can close this tab and return to WP Autopilot.</p>
-    <script>setTimeout(()=>{window.location='/#searchconsole'},1500)</script></body>`);
+  const page = (title, body) => `<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;background:#0f1216;color:#e7edf3;text-align:center;padding:50px 24px;line-height:1.6">${title}${body}</body>`;
+  // Google can return the error in the query string (e.g. access_denied).
+  if (req.query.error) {
+    return res.send(page(`<h2>❌ Authorisation failed</h2>`,
+      `<p><code>${esc(req.query.error)}</code>${req.query.error_description ? ` — ${esc(req.query.error_description)}` : ''}</p>
+       <p>You can close this tab and try again.</p>`));
+  }
+  try {
+    await gsc.exchangeCode(req.query.code, redirectUri(req));
+    log.info('gsc', 'connected to Search Console');
+    return res.send(page(`<h2>✅ Search Console connected</h2>`,
+      `<p>You can close this tab and return to WP Autopilot.</p><script>setTimeout(()=>{window.location='/#searchconsole'},1500)</script>`));
+  } catch (e) {
+    log.warn('gsc', `OAuth exchange failed: ${e.message}`);
+    return res.send(page(`<h2>❌ Couldn't finish connecting</h2>`,
+      `<p style="color:#f0685f"><b>${esc(e.message)}</b></p>
+       <div style="text-align:left;max-width:560px;margin:18px auto;background:#161b22;border:1px solid #29313c;border-radius:10px;padding:16px">
+         <p><b>Most common fixes:</b></p>
+         <p>• <b>redirect_uri_mismatch</b> → in Google Cloud Console → Credentials → open your OAuth client → <b>Authorized redirect URIs</b> → add exactly:<br><code>${esc(redirectUri(req))}</code> → Save, wait a minute, retry.</p>
+         <p>• <b>invalid_client</b> → the Client ID and Secret in Settings don't belong to the same OAuth client. Re-copy both from the same client.</p>
+         <p>• <b>access_denied / app not verified</b> → on the consent screen click <b>Advanced → Go to (app) (unsafe)</b>, or add your email as a Test user.</p>
+       </div>
+       <p>Close this tab, fix the above, and click Reconnect.</p>`));
+  }
 }));
 router.get('/gsc/sites', wrap(async (req, res) => res.json(await gsc.listSites())));
 router.get('/gsc/overview', wrap(async (req, res) => res.json(await insights.overview(+req.query.days || 28))));
@@ -336,6 +369,7 @@ router.get('/optimize/list', wrap((req, res) => res.json(optimize.listOptimizati
 router.get('/optimize/:id', wrap((req, res) => res.json(optimize.getOptimization(req.params.id))));
 router.post('/optimize/ctr', wrap(async (req, res) => res.json(await optimize.prepareCtr(req.body.url))));
 router.post('/optimize/refresh', wrap(async (req, res) => res.json(await optimize.prepareRefresh(req.body.url))));
+router.post('/optimize/regenerate', wrap(async (req, res) => res.json(await optimize.prepareRegenerate(req.body.url))));
 router.post('/optimize/destuff', wrap(async (req, res) => res.json(await optimize.prepareDestuff(req.body.url))));
 router.post('/optimize/gap', wrap(async (req, res) => res.json(await optimize.gapToIdea(req.body.query, { generate: req.body.generate }))));
 router.post('/optimize/:id/apply', wrap(async (req, res) => res.json(await optimize.apply(req.params.id))));
@@ -363,6 +397,9 @@ router.post('/wp/comments/:id/moderate', wrap(async (req, res) => res.json(await
 router.get('/wp/content/:type', wrap(async (req, res) => {
   const type = req.params.type;
   const { page = 1, per_page, status, search } = req.query;
+  // Sorting (whitelisted so WP REST never rejects it).
+  const orderby = ['date', 'title', 'modified'].includes(req.query.orderby) ? req.query.orderby : 'date';
+  const order = req.query.order === 'asc' ? 'asc' : 'desc';
   if (type === 'comments') {
     const list = await wp.listComments({ page, per_page: per_page || 20, ...(status ? { status } : {}) });
     return res.json({ items: list.map((c) => ({ id: c.id, title: c.author_name, excerpt: (c.content?.rendered || '').replace(/<[^>]+>/g, '').slice(0, 160), status: c.status, link: c.link, date: c.date })), page: +page, totalPages: 1, total: list.length });
@@ -379,12 +416,12 @@ router.get('/wp/content/:type', wrap(async (req, res) => {
   } else {
     try {
       // Full visibility (drafts etc.) — needs edit rights on the connected user.
-      r = await wp.browse(type, { page, per_page: pp, status: statusList, search, context: 'edit' });
+      r = await wp.browse(type, { page, per_page: pp, status: statusList, search, orderby, order, context: 'edit' });
     } catch (e) {
       // Fall back to public/published view so the browser still works for
       // read-only or limited-capability connections.
       limited = true;
-      r = await wp.browse(type, { page, per_page: pp, search, context: 'view' });
+      r = await wp.browse(type, { page, per_page: pp, search, orderby, order, context: 'view' });
     }
   }
   const items = r.items.map((p) => ({

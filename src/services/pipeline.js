@@ -16,7 +16,9 @@ import replenish from './replenish.js';
 import calendar from './calendar.js';
 import ranktrack from './ranktrack.js';
 import indexmon from './indexmon.js';
+import postintel from './postintel.js';
 import distribute from './distribute.js';
+import ahrefs from '../clients/ahrefs.js';
 import supabase from '../clients/supabase.js';
 import backup from './backup.js';
 
@@ -161,6 +163,20 @@ export async function tick({ manual = false } = {}) {
         const r = await indexmon.monitorRecent(cfg.getInt('index_check_per_tick', 3));
         summary.indexChecked = r.checked;
       } catch (e) { summary.errors.push(`indexmon: ${e.message}`); }
+    }
+
+    // 6.5) Auto content-gap analysis: continuously compare existing pages against
+    //      the LIVE Google top-10 for their focus keyword (rate-limited, rotating),
+    //      saving an analysis + apply-ready edits on each. Skips if Ahrefs is off.
+    if (cfg.getBool('auto_gap_analysis') && ahrefs.configured()) {
+      try {
+        const r = await postintel.autoAnalyzeDue({
+          limit: cfg.getInt('gap_analysis_per_tick', 2),
+          intervalDays: cfg.getInt('gap_analysis_interval_days', 30),
+        });
+        summary.gapAnalyzed = r.analyzed;
+        if (r.errors.length) summary.errors.push(...r.errors.map((e) => `gap-analysis ${e}`));
+      } catch (e) { summary.errors.push(`gap-analysis: ${e.message}`); }
     }
 
     // 6) Cloud persistence: daily Supabase backup (best-effort, throttled to ~20h).

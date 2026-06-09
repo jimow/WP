@@ -78,11 +78,46 @@ const seoPill = (n) => (n == null ? '<span class="muted">–</span>'
 
 // Reusable pagination control. fnName is a global fn taking the new page number.
 function pager(meta, fnName) {
-  if (!meta || meta.totalPages <= 1) return meta && meta.total ? `<div class="pager"><span class="muted">${meta.total} items</span></div>` : '';
+  if (!meta) return '';
+  const total = meta.total || 0, pages = meta.totalPages || 1, cur = meta.page || 1;
+  if (pages <= 1) return total ? `<div class="pager"><span class="muted">${total} item${total === 1 ? '' : 's'}</span></div>` : '';
+  // Windowed page numbers: 1 … (cur-1, cur, cur+1) … last
+  const nums = new Set([1, pages, cur, cur - 1, cur + 1, cur - 2, cur + 2]);
+  const list = [...nums].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
+  let cells = '', prev = 0;
+  for (const n of list) {
+    if (n - prev > 1) cells += '<span class="pg-ell">…</span>';
+    cells += `<button class="pg ${n === cur ? 'on' : ''}" onclick="${fnName}(${n})">${n}</button>`;
+    prev = n;
+  }
   return `<div class="pager">
-    <button class="btn sm secondary" ${meta.page <= 1 ? 'disabled' : ''} onclick="${fnName}(${meta.page - 1})">‹ Prev</button>
-    <span class="muted">Page ${meta.page} / ${meta.totalPages} · ${meta.total} items</span>
-    <button class="btn sm secondary" ${meta.page >= meta.totalPages ? 'disabled' : ''} onclick="${fnName}(${meta.page + 1})">Next ›</button>
+    <button class="pg" ${cur <= 1 ? 'disabled' : ''} onclick="${fnName}(1)" title="First">«</button>
+    <button class="pg" ${cur <= 1 ? 'disabled' : ''} onclick="${fnName}(${cur - 1})" title="Previous">‹</button>
+    ${cells}
+    <button class="pg" ${cur >= pages ? 'disabled' : ''} onclick="${fnName}(${cur + 1})" title="Next">›</button>
+    <button class="pg" ${cur >= pages ? 'disabled' : ''} onclick="${fnName}(${pages})" title="Last">»</button>
+    <span class="muted" style="margin-left:8px;font-size:12px">${total} items</span>
+    <input class="pg-jump" type="number" min="1" max="${pages}" placeholder="${cur}" title="Jump to page" onkeydown="if(event.key==='Enter'){const v=Math.max(1,Math.min(${pages},+this.value||1));${fnName}(v);}"/>
+  </div>`;
+}
+// The content lifecycle "flow" strip — the SAME pipeline shown on Workflow,
+// Hub & Spoke, Content and WordPress so users see they're stages of ONE journey,
+// not separate tools. `active` highlights the current stage; each is clickable.
+function pipelineFlow(active) {
+  const stages = [
+    { key: 'clusters', n: '1', icon: '🕸', label: 'Plan', desc: 'Topic clusters (Hub & Spoke)' },
+    { key: 'workflow', n: '2', icon: '✍️', label: 'Create', desc: 'Generate the articles' },
+    { key: 'articles', n: '3', icon: '📝', label: 'Review', desc: 'Drafts in Content' },
+    { key: 'site', n: '4', icon: '🧩', label: 'Publish', desc: 'Live on WordPress' },
+    { key: 'indexstatus', n: '5', icon: '📈', label: 'Grow', desc: 'Track & improve' },
+  ];
+  return `<div class="card flow-card">
+    <div class="flow">${stages.map((s, i) => `
+      <button class="flow-step ${active === s.key ? 'on' : ''}" onclick="navigate('${s.key}')" title="Go to ${s.label}">
+        <div class="flow-n">STEP ${s.n}</div><div class="flow-ic">${s.icon}</div><div class="flow-lbl">${s.label}</div><div class="flow-desc">${s.desc}</div>
+      </button>${i < stages.length - 1 ? '<div class="flow-arrow">→</div>' : ''}`).join('')}
+    </div>
+    <p class="hint" style="margin:10px 2px 0">It's <b>one journey</b>: a keyword becomes a <b>cluster</b> (Hub &amp; Spoke) → each topic is generated into an <b>article</b> (Content) → which publishes to <b>WordPress</b> → then you <b>track &amp; improve</b> it. Same content, different stage — you're ${active === 'clusters' ? 'planning' : active === 'workflow' ? 'creating' : active === 'articles' ? 'reviewing drafts' : active === 'site' ? 'managing what\'s live' : 'growing'} right now.</p>
   </div>`;
 }
 // Dropdown action menu.
@@ -104,7 +139,7 @@ const views = {};
 let current = 'dashboard';
 const titles = { dashboard: 'Dashboard', workflow: 'Content Workflow', strategy: 'SEO Strategy', keywords: 'Keywords', clusters: 'Hub & Spoke',
   articles: 'Content', article: 'Article Editor', pages: 'Pages & Layout', stats: 'Content Stats',
-  searchconsole: 'Search Console', optimize: 'Opportunities', site: 'WordPress',
+  searchconsole: 'Search Console', indexstatus: 'Pages — Index & Performance', optimize: 'Opportunities', site: 'WordPress',
   ahrefs: 'Ahrefs — Keywords, Competitors & Backlinks',
   autopilot: 'Autopilot — 24/7 Engine', settings: 'Settings', logs: 'Activity' };
 
@@ -118,6 +153,7 @@ const viewIntro = {
   strategy: 'A brief audit of your site plus the highest-leverage next moves. Acting on these opens the Workflow.',
   autopilot: 'The 24/7 engine — idea queue, editorial calendar, rank tracking, indexing and distribution.',
   searchconsole: 'Live Google Search Console performance and the opportunities it surfaces.',
+  indexstatus: 'Your existing pages, split into indexed vs not-indexed — performance, easy wins, and how each moved since it was optimized. The 24/7 worker fills this from Search Console.',
   ahrefs: 'Ahrefs powers keyword research, competitor SERP analysis, backlinks, referring domains and domain metrics — for any site, including competitors.',
   stats: 'Production and performance over time — what you’ve published and how it’s doing.',
   site: 'Browse and manage your live WordPress — posts, pages, media and comments.',
@@ -259,6 +295,7 @@ async function renderWfHome() {
       ${a.status === 'approved' ? `<button class="btn sm success" onclick="publishArticle(${a.id})">Publish</button>` : ''}
     </td></tr>`;
   $('#view').innerHTML = `
+    ${pipelineFlow('workflow')}
     <div class="card">
       <h2>Start here — what do you want to do?</h2>
       <p class="hint">One straightforward flow. Connections: ${dot(c.wordpress, 'WordPress')} ${dot(c.ai, 'AI')} ${dot(c.gsc, 'Search Console')}</p>
@@ -969,6 +1006,7 @@ views.clusters = async () => {
   allArts.forEach((a) => { if (a.cluster_id) (byCluster[a.cluster_id] = byCluster[a.cluster_id] || []).push(a); });
   articleReturnView = 'clusters';
   $('#view').innerHTML = `
+    ${pipelineFlow('clusters')}
     <div class="card" style="margin-bottom:16px;border:1px dashed var(--accent)">
       <div class="section-head" style="margin-bottom:8px"><h3 style="margin:0">📤 Upload keywords → propose hubs &amp; spokes</h3></div>
       <p class="hint" style="margin:0 0 10px">Upload an <b>Excel (.xlsx/.xls)</b> or <b>CSV</b> of keywords. Choose <b>hub &amp; spoke</b> (the AI groups them into a topical pillar + supporting articles) or <b>standalone articles</b> (one per keyword). A “keyword” column is auto-detected (optional volume / difficulty columns). Keywords the same or similar to existing content are skipped automatically.</p>
@@ -1307,6 +1345,7 @@ views.articles = async () => {
     : '';
 
   $('#view').innerHTML = `
+    ${pipelineFlow('articles')}
     <div class="card">
       <div class="toolbar">
         <input id="ideaKw" placeholder="Add an article idea (target keyword)…" style="min-width:240px" onkeydown="if(event.key==='Enter')addIdea()"/>
@@ -1615,17 +1654,25 @@ function renderIntel(d, id) {
   const cov = d.coverageScore != null ? `<span class="badge ${d.coverageScore >= 70 ? 'published' : d.coverageScore >= 40 ? 'pending_review' : 'failed'}" title="How completely this page covers the topic vs the top 10">coverage ${d.coverageScore}/100</span>` : '';
   const words = d.myWordCount != null ? `<span class="muted" style="font-size:12px">${d.myWordCount} words vs top-10 avg ${d.avgCompetitorWords || '?'}${d.targetWordCount ? ` · aim ${d.targetWordCount}` : ''}</span>` : '';
   const improvements = (d.improvements || []);
+  // Live-post analyses (from WordPress) carry the URL but no draft id — they get
+  // URL-based actions (regenerate the live post, insert links into it).
+  const url = (d.target && d.target.wp_url) || null;
   return `<div class="card" style="margin-top:16px">
       <div class="section-head"><h2>🔬 SERP content-gap analysis — “${esc(d.keyword)}”</h2>
-        <div class="inline" style="gap:8px">${cov}<button class="btn sm secondary" onclick="analyzePost(${id})">🔄 Re-analyze</button></div></div>
+        <div class="inline" style="gap:8px">${cov}${id ? `<button class="btn sm secondary" onclick="analyzePost(${id})">🔄 Re-analyze</button>` : url ? `<button class="btn sm secondary" onclick="wpAnalyzeUrl('${esc(url)}')">🔄 Re-analyze</button>` : ''}</div></div>
       <p class="muted" style="font-size:12px;margin:-4px 0 10px">${d.scrapedCount || 0}/${d.competitors?.length || 0} top-ranking Google pages scraped${d.analyzedAt ? ` · last analysed ${esc(d.analyzedAt)} UTC` : ''} · ${words}</p>
+      ${(d.competitors || []).length ? `<details style="margin:0 0 12px" open><summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)">🔍 Live Google top-10 for “${esc(d.keyword)}” (real SERP via Ahrefs)</summary>
+        <ol class="table-scroll" style="max-height:220px;margin:8px 0;padding:8px 8px 8px 28px">${d.competitors.slice(0, 10).map((cp) => `<li style="font-size:12.5px;margin-bottom:4px"><a href="${esc(cp.url)}" target="_blank" rel="noopener">${esc((cp.title || cp.url).slice(0, 85))}</a> <span class="muted">— pos ${esc(cp.position ?? '?')}${cp.dr != null ? `, DR ${esc(cp.dr)}` : ''}${cp.traffic != null ? `, ~${esc(cp.traffic)} visits/mo` : ''}</span></li>`).join('')}</ol></details>` : '<p class="callout warn" style="font-size:12.5px"><span class="ico">⚠️</span><div>No live SERP returned — check the Ahrefs connection. Recommendations below fall back to model knowledge (not the live top-10).</div></p>'}
       ${improvements.length ? `<div class="callout" style="background:var(--accent-soft);border-color:var(--accent)"><div style="flex:1">
         <h3 style="margin:0 0 8px">✍️ Recommended edits — what the top 10 cover that you don't</h3>
         <table><thead><tr><th>Add this section</th><th>What to cover</th><th>In top-10</th><th>Priority</th></tr></thead><tbody>
         ${improvements.map((i) => `<tr><td><b>${esc(i.heading || '')}</b></td><td class="muted" style="font-size:12px">${esc(i.what || '')}</td><td style="text-align:center">${i.competitorsCovering != null ? esc(i.competitorsCovering) + '/10' : '—'}</td><td>${prio(i.priority)}</td></tr>`).join('')}
         </tbody></table>
-        <button class="btn success" style="margin-top:10px" onclick="applyImprovements(${id})">✍️ Apply these edits to the draft (AI)</button>
-        <span class="muted" style="font-size:11px;margin-left:8px">Rewrites the draft to add the missing sections, then re-scores.</span>
+        ${id ? `<button class="btn success" style="margin-top:10px" onclick="applyImprovements(${id})">✍️ Apply these edits to the draft (AI)</button>
+        <span class="muted" style="font-size:11px;margin-left:8px">Rewrites the draft to add the missing sections, then re-scores.</span>`
+          : url ? `<button class="btn success" style="margin-top:10px" onclick="optimizeLive('${esc(url)}','regenerate')">♻️ Regenerate this post with these edits</button>
+        <span class="muted" style="font-size:11px;margin-left:8px">Rewrites the live post incorporating these gaps + rich components — you review &amp; apply.</span>`
+          : '<p class="muted" style="font-size:11px;margin-top:6px">Open the matching draft in Content to apply these edits automatically.</p>'}
       </div></div>` : ''}
       <div class="grid cols-2" style="align-items:start;margin-top:8px">
         <div>
@@ -1638,7 +1685,7 @@ function renderIntel(d, id) {
           ${hp.canBeHub
             ? `<p style="font-size:13px"><span class="badge approved">Could be a hub</span> ${esc(hp.reason || '')}</p>
                ${(hp.suggestedSpokes || []).length ? `<p style="font-size:13px">Suggested spokes: ${hp.suggestedSpokes.map((s) => `<span class="badge" style="margin:2px">${esc(s)}</span>`).join('')}</p>
-               <button class="btn sm success" onclick='convertToHub(${id})'>🏛 Convert to hub + add ${hp.suggestedSpokes.length} spokes</button>` : ''}`
+               ${id ? `<button class="btn sm success" onclick='convertToHub(${id})'>🏛 Convert to hub + add ${hp.suggestedSpokes.length} spokes</button>` : ''}` : ''}`
             : `<p class="muted" style="font-size:13px">${esc(hp.reason || 'Better as a single focused article.')}</p>`}
           ${(d.scraped || []).length ? `<h3 style="margin-top:12px">🌐 Top-ranking pages scraped</h3><ol style="margin:4px 0;padding-left:20px">${d.scraped.slice(0, 10).map((s) => `<li style="font-size:12px"><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc((s.title || s.url).slice(0, 70))}</a> <span class="muted">(${s.wordCount} words)</span></li>`).join('')}</ol>` : ''}
         </div>
@@ -1649,7 +1696,7 @@ function renderIntel(d, id) {
       <h3 style="margin-top:14px">🕸 Internal links to add</h3>
       ${(d.internalLinks || []).length ? `${d.internalLinks.map((l, i) => `<label class="field" style="display:flex;flex-direction:row;align-items:center;gap:8px;margin-bottom:4px"><input type="checkbox" class="il_pick" data-i="${i}" style="width:auto" checked/>
           <span style="margin:0;font-size:13px"><b>${esc(l.anchor || '')}</b> → ${esc(l.toTitle || l.toUrl)} <span class="muted">— ${esc(l.why || '')}</span></span></label>`).join('')}
-        <button class="btn sm success" onclick="insertLinks(${id})">Insert selected links</button>` : '<p class="muted">No internal-link opportunities found.</p>'}
+        ${id ? `<button class="btn sm success" onclick="insertLinks(${id})">Insert selected links</button>` : url ? `<button class="btn sm success" onclick="insertLinksUrl('${esc(url)}')">Insert selected links into the live post</button>` : ''}` : '<p class="muted">No internal-link opportunities found.</p>'}
     </div>`;
 }
 // Load the PERSISTED analysis on editor open (survives navigation); show a prompt if none.
@@ -1677,8 +1724,24 @@ window.applyImprovements = async (id) => {
 };
 window.convertToHub = async (id) => {
   const spokes = (window.__intel?.hubPotential?.suggestedSpokes) || [];
-  if (!confirm(`Convert this article into a hub and add ${spokes.length} spoke article ideas?`)) return;
-  try { const r = await api.post(`/articles/${id}/convert-to-hub`, { spokes }); toast(`Hub created with ${r.spokesAdded} spokes`, 'success'); views.article(); }
+  if (!confirm(`Convert this article into a hub? It will check each of the ${spokes.length} suggested spokes against what you've already published, generate only the missing ones, and link the rest.`)) return;
+  try {
+    const r = await api.post(`/articles/${id}/convert-to-hub`, { spokes });
+    const ex = r.existingLinked || 0;
+    let msg = `Hub created · ${r.spokesAdded} new spoke(s) to generate`;
+    if (ex) msg += ` · ${ex} already published → linked (not duplicated)`;
+    toast(msg, 'success');
+    if (ex && Array.isArray(r.existing) && r.existing.length) {
+      // Show which existing posts were linked so the user sees the dedup at work.
+      modal('🕸 Hub created — existing spokes linked, not duplicated', `
+        <p class="muted" style="font-size:13px">Created the hub and <b>${r.spokesAdded}</b> idea(s) for the genuinely missing topics. These suggested spokes <b>already exist</b>, so they were linked into the cluster instead of regenerated — the hub will interlink to them:</p>
+        <table><thead><tr><th>Existing spoke</th><th>Where</th></tr></thead><tbody>
+        ${r.existing.map((e) => `<tr><td>${esc(e.title || e.keyword)}</td><td>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.source || 'live')} ↗</a>` : esc(e.source || 'your content')}</td></tr>`).join('')}
+        </tbody></table>
+        <div class="inline" style="margin-top:12px"><button class="btn" onclick="closeModal();navigate('clusters')">Open the cluster →</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`);
+    }
+    views.article();
+  }
   catch (e) { toast(e.message, 'error'); }
 };
 window.insertLinks = async (id) => {
@@ -1686,6 +1749,14 @@ window.insertLinks = async (id) => {
   if (!picks.length) return toast('Select at least one link', 'error');
   try { const r = await api.post(`/articles/${id}/insert-links`, { links: picks }); toast(`Inserted ${r.total} internal link(s)`, 'success'); views.article(); }
   catch (e) { toast(e.message, 'error'); }
+};
+// Insert the chosen internal links straight into the LIVE WordPress post (URL-based).
+window.insertLinksUrl = async (url) => {
+  const picks = $$('.il_pick').filter((c) => c.checked).map((c) => window.__intel.internalLinks[+c.dataset.i]);
+  if (!picks.length) return toast('Select at least one link', 'error');
+  const t = toast('Inserting links into the live post…', 'loading');
+  try { const r = await api.post('/intel/insert-links', { url, links: picks }); t.done(`Inserted ${r.total} internal link(s) into the live post`, 'success'); }
+  catch (e) { t.fail(e.message); }
 };
 async function genInEditor(id) {
   // Collect the per-article generation options the user set (blank = use defaults).
@@ -2486,6 +2557,190 @@ views.searchconsole = async () => {
   window.__striking = d.striking.map((s) => s.query);
 };
 window.setGscDays = (n) => { gscDays = n; views.searchconsole(); };
+
+// ---- Pages: Index & Performance (autonomous data + live operations) --------
+let idxTab = 'indexed';
+let idxSort = 'easy';
+window.setIdxTab = (t) => { idxTab = t; views.indexstatus(); };
+window.setIdxSort = (s) => { idxSort = s; views.indexstatus(); };
+function sortIndexed(list) {
+  const a = list.slice();
+  if (idxSort === 'impr') a.sort((x, y) => (y.impressions || 0) - (x.impressions || 0));
+  else if (idxSort === 'pos') a.sort((x, y) => (x.position ?? 999) - (y.position ?? 999));
+  else if (idxSort === 'worst') a.sort((x, y) => (y.position ?? 0) - (x.position ?? 0));
+  else if (idxSort === 'decline') a.sort((x, y) => ((y.trend?.delta || 0) - (x.trend?.delta || 0)));
+  else a.sort((x, y) => (Number(y.easyOptimize) - Number(x.easyOptimize)) || ((y.impressions || 0) - (x.impressions || 0)));
+  return a;
+}
+// LIVE: pull fresh positions from Search Console now, with visible progress.
+window.idxRefresh = async () => {
+  const el = $('#idxLive');
+  if (el) el.innerHTML = '<div class="callout"><span class="ico"><span class="spinner"></span></span><div><b>Pulling live positions from Google Search Console…</b><br><span class="muted" style="font-size:12px">This reads every page\'s position, impressions and clicks.</span></div></div>';
+  try { const r = await api.post('/ranktrack/snapshot', { force: true }); toast(`Pulled ${r.rows} pages from Search Console`, 'success'); await views.indexstatus(); }
+  catch (e) { if (el) el.innerHTML = `<div class="callout warn"><span class="ico">⚠️</span><div>${esc(e.message)}</div></div>`; toast(e.message, 'error'); }
+};
+// LIVE: check the unverified pages' index coverage one-by-one, updating as it goes.
+window.idxCheckLive = async () => {
+  let d; try { d = await api.get('/index/overview?range=' + idxRange); } catch (e) { return toast(e.message, 'error'); }
+  const urls = [...(d.unchecked || []), ...(d.notIndexed || [])].map((x) => x.url);
+  const el = $('#idxLive');
+  if (!urls.length) { toast('No unverified pages to check 🎉', 'success'); return; }
+  let done = 0, pass = 0;
+  for (const url of urls) {
+    if (el) el.innerHTML = `<div class="callout"><span class="ico"><span class="spinner"></span></span><div><b>Checking indexing live — ${done + 1}/${urls.length}</b>
+      <div class="muted" style="font-size:12px">${esc(url)}</div>
+      <div style="height:7px;border-radius:99px;background:#1d2634;overflow:hidden;margin-top:8px"><span style="display:block;height:100%;width:${Math.round(done / urls.length * 100)}%;background:var(--accent);transition:width .3s"></span></div>
+      <span class="muted" style="font-size:11px">${pass} confirmed indexed so far</span></div></div>`;
+    try { const r = await api.post('/indexmon/check', { url }); if (r && r.verdict === 'PASS') pass++; } catch { /* keep going */ }
+    done++;
+  }
+  toast(`Checked ${done} page(s) live — ${pass} confirmed indexed`, 'success');
+  await views.indexstatus();
+};
+function idxTrend(t) {
+  if (!t) return '<span class="muted">—</span>';
+  if (t.direction === 'up') return `<span style="color:#34d399" title="improved ${t.from}→${t.to}">▲ ${Math.abs(t.delta)}</span>`;
+  if (t.direction === 'down') return `<span style="color:#f0685f" title="slipped ${t.from}→${t.to}">▼ ${Math.abs(t.delta)}</span>`;
+  return '<span class="muted">flat</span>';
+}
+function idxMovement(m) {
+  if (!m) return '';
+  const up = m.delta > 0;
+  return `<span class="badge ${up ? 'published' : m.delta < 0 ? 'failed' : ''}" title="position ${m.from}→${m.to}">since optimized: ${m.beforePos}→${m.afterPos} ${up ? '▲' : m.delta < 0 ? '▼' : ''}</span>`;
+}
+let idxRange = '28d';
+window.setIdxRange = (r) => { idxRange = r; views.indexstatus(); };
+const fmtN = (n) => n == null ? '–' : Number(n).toLocaleString();
+views.indexstatus = async () => {
+  let d;
+  try { d = await api.get('/index/overview?range=' + encodeURIComponent(idxRange)); }
+  catch (e) { $('#view').innerHTML = `<div class="callout warn"><span class="ico">⚠️</span><div>${esc(e.message)}</div></div>`; return; }
+  if (d.range) idxRange = d.range;
+
+  if (d.needsGsc) {
+    $('#view').innerHTML = `<div class="callout warn"><span class="ico">🔌</span><div><b>Connect Google Search Console</b> to see your pages' real index status and performance. <button class="btn sm" onclick="connectGsc()">Connect Search Console</button></div></div>`;
+    return;
+  }
+  if (d.needsReauth) {
+    $('#view').innerHTML = `<div class="callout warn"><span class="ico">🔑</span><div>
+      <b>Search Console needs reconnecting.</b> Your Google token expired (<code>${esc(d.error || 'token expired')}</code>) — this happens every 7 days while the Google OAuth consent screen is in <b>"Testing"</b> mode.
+      <div style="margin-top:10px"><button class="btn" onclick="connectGsc()">🔑 Reconnect Search Console</button></div>
+      <p class="hint" style="margin-top:8px"><b>To stop it expiring:</b> in Google Cloud Console → <i>OAuth consent screen</i> → set <b>Publishing status → In production</b>, then reconnect once. Your Client ID/Secret are fine — nothing to re-enter.</p></div></div>`;
+    return;
+  }
+  if (d.error) { $('#view').innerHTML = `<div class="callout warn"><span class="ico">⚠️</span><div>${esc(d.error)}</div><div style="margin-top:8px"><button class="btn sm" onclick="connectGsc()">Reconnect Search Console</button></div></div>`; return; }
+
+  const rangeLabel = (d.ranges.find((x) => x.id === idxRange) || {}).label || idxRange;
+  const rangeSel = `<div class="seg">${d.ranges.map((x) => `<button class="seg-btn ${idxRange === x.id ? 'on' : ''}" onclick="setIdxRange('${x.id}')">${x.label}</button>`).join('')}</div>`;
+  const pageCell = (r) => `<td><a class="title-link" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+    ${r.focusKeyword ? `<div><span class="badge" style="font-size:10px;background:var(--accent-soft);color:var(--accent)">🎯 ${esc(r.focusKeyword)}</span></div>` : ''}
+    ${r.optimization && r.optimization.movement ? `<div style="margin-top:3px">${idxMovement(r.optimization.movement)}</div>` : (r.optimization ? `<div class="muted" style="font-size:11px;margin-top:3px">optimized (${esc(r.optimization.status)}) — measuring…</div>` : '')}</td>`;
+  const m = (v) => v == null ? '<td class="muted">–</td>' : `<td>${fmtN(v)}</td>`;
+
+  let body = '';
+  if (idxTab === 'indexed') {
+    const rows = sortIndexed(d.indexed).map((r) => `<tr${r.easyOptimize ? ' style="background:rgba(245,183,61,.08)"' : ''}>
+      ${pageCell(r)}
+      ${m(r.clicks)}${m(r.impressions)}<td>${r.ctr == null ? '–' : (r.ctr * 100).toFixed(1) + '%'}</td><td>${r.position == null ? '–' : r.position.toFixed(1)}</td>
+      <td>${r.easyOptimize ? '<span class="badge" style="background:rgba(245,183,61,.18);color:#f5b73d">⚡ easy win</span>' : ''}</td>
+      <td class="row-actions">
+        <button class="btn sm secondary" onclick="wpAnalyzeUrl('${esc(r.url)}')" title="Compare vs the live Google top-10">🔬 Analyze</button>
+        <button class="btn sm" onclick="optimizeLive('${esc(r.url)}','refresh')" title="Refresh & expand to satisfy near-ranking queries">📈 Refresh</button>
+        <button class="btn sm success" onclick="optimizeLive('${esc(r.url)}','regenerate')" title="Full rewrite to a best-in-class article (rich components + gap analysis)">♻️ Regenerate</button>
+      </td></tr>`).join('') || `<tr><td colspan="7" class="muted">No indexed pages with traffic in the last ${esc(rangeLabel)}.</td></tr>`;
+    body = `<div class="table-scroll"><table><thead><tr><th>Page</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">Indexed = verified by URL Inspection <i>or</i> receiving impressions (Google can't show impressions for an unindexed page). Numbers are live from Search Console for the selected range. ⚡ easy wins = striking-distance pages — fastest to push to page one.</p>`;
+  } else if (idxTab === 'notindexed') {
+    const rows = d.notIndexed.map((r) => `<tr>
+      ${pageCell(r)}
+      <td><span class="badge failed">${esc(r.indexState)}</span>${r.checkedAt ? `<div class="muted" style="font-size:11px">checked ${esc(r.checkedAt.slice(0, 10))}</div>` : ''}</td>
+      <td class="row-actions">
+        <button class="btn sm" onclick="idxCheckOne('${esc(r.url)}')" title="Re-run URL Inspection now">🔄 Re-check</button>
+        <a class="btn sm secondary" href="${esc(r.searchUrl)}" target="_blank" rel="noopener" title="Live site: search">🔎 Google</a>
+        ${r.inspectUrl ? `<a class="btn sm secondary" href="${esc(r.inspectUrl)}" target="_blank" rel="noopener">Inspect</a>` : ''}
+        <button class="btn sm secondary" onclick="reqIndex('${esc(r.url)}')" title="Ping the Indexing API">Request indexing</button>
+      </td></tr>`).join('') || '<tr><td colspan="3" class="muted">No pages confirmed not-indexed. 🎉</td></tr>';
+    body = `<div class="table-scroll"><table><thead><tr><th>Page</th><th>Index status (verified)</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">These returned a real <b>not-indexed</b> verdict from Google's URL Inspection. “Request indexing” pings the Indexing API (needs the service account in Settings → Indexing).</p>`;
+  } else {
+    const rows = d.unchecked.map((r) => `<tr>
+      ${pageCell(r)}
+      <td class="row-actions">
+        <button class="btn sm" onclick="idxCheckOne('${esc(r.url)}')" title="Run URL Inspection now (live)">🔍 Check index now</button>
+        <a class="btn sm secondary" href="${esc(r.searchUrl)}" target="_blank" rel="noopener">🔎 Google</a>
+      </td></tr>`).join('') || '<tr><td colspan="2" class="muted">Nothing unchecked. 🎉</td></tr>';
+    body = `<div class="table-scroll"><table><thead><tr><th>Page</th><th>Live indexing check</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="hint">No Search Console traffic and not yet inspected — so we DON'T guess. Run a live URL Inspection to get the real verdict (or let the 24/7 worker do it over time).</p>`;
+  }
+
+  const sortSel = idxTab === 'indexed' ? `<select onchange="setIdxSort(this.value)" title="Sort mode">
+      ${[['easy', '⚡ Easy wins first'], ['impr', 'Most impressions'], ['pos', 'Best position'], ['worst', 'Worst position']].map((o) => `<option value="${o[0]}" ${idxSort === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}
+    </select>` : '';
+  $('#view').innerHTML = `
+    <div class="toolbar" style="gap:10px;flex-wrap:wrap;align-items:center">
+      ${rangeSel}
+      <div class="spacer"></div>
+      <span class="muted" style="font-size:12.5px"><b>${fmtN(d.totals.clicks)}</b> clicks · <b>${fmtN(d.totals.impressions)}</b> impressions <span style="opacity:.7">(${esc(rangeLabel)}, from Search Console)</span></span>
+    </div>
+    <div class="toolbar" style="gap:8px;flex-wrap:wrap">
+      <button class="btn sm" onclick="views.indexstatus()" title="Re-pull from Search Console">🔄 Refresh</button>
+      <button class="btn sm secondary" onclick="idxCheckLive()" title="Inspect the unchecked/not-indexed pages live">🔍 Check indexing (live)</button>
+      ${sortSel}
+      <div class="spacer"></div>
+      <span class="muted" style="font-size:12px">${d.counts.indexed} indexed · ${d.counts.notIndexed} not indexed · <b>${d.easyWins}</b> easy wins</span>
+    </div>
+    <div id="idxLive"></div>
+    <div class="tabs">
+      <div class="tab ${idxTab === 'indexed' ? 'active' : ''}" onclick="setIdxTab('indexed')">✅ Indexed (${d.counts.indexed})</div>
+      <div class="tab ${idxTab === 'notindexed' ? 'active' : ''}" onclick="setIdxTab('notindexed')">🚫 Not indexed (${d.counts.notIndexed})</div>
+      <div class="tab ${idxTab === 'unchecked' ? 'active' : ''}" onclick="setIdxTab('unchecked')">❔ Unchecked (${d.counts.unchecked})</div>
+    </div>
+    <div class="card" style="margin-top:12px">${body}</div>`;
+};
+// LIVE, INTERACTIVE optimize: prepare from GSC, then let the user apply / dismiss / retry.
+window.optimizeLive = async (url, mode) => {
+  modal('Optimizing…', `<div class="empty"><span class="spinner"></span> Preparing ${mode === 'ctr' ? 'a title/meta CTR rewrite' : 'a content refresh'} from Search Console data…<br><span class="muted" style="font-size:12px">${esc(url)}</span></div>`);
+  let o;
+  try { o = await api.post('/optimize/' + mode, { url }); }
+  catch (e) { modal('Could not optimize', `<p class="badge failed">${esc(e.message)}</p><div class="inline" style="margin-top:12px;gap:8px"><button class="btn" onclick="optimizeLive('${esc(url)}','${mode}')">↻ Retry</button><button class="btn ghost" onclick="closeModal()">Close</button></div>`); return; }
+  renderOptimization(o);
+};
+function renderOptimization(o) {
+  const parse = (s) => { try { return JSON.parse(s || '{}'); } catch { return {}; } };
+  const after = parse(o.after), before = parse(o.before);
+  const words = (after.content || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+  modal('Prepared optimization — review &amp; act', `
+    <div class="muted" style="font-size:12px;margin:-6px 0 10px">${esc(o.type || '')} · <a href="${esc(o.target_url || '')}" target="_blank" rel="noopener">${esc(o.target_url || '')}</a></div>
+    ${o.note ? `<p>${esc(o.note)}</p>` : ''}
+    ${after.title && after.title !== before.title ? `<p><b>New title:</b> ${esc(after.title)}<br><span class="muted" style="font-size:12px">was: ${esc(before.title || '')}</span></p>` : ''}
+    ${after.meta_description ? `<p><b>New meta description:</b> ${esc(after.meta_description)}</p>` : ''}
+    ${after.content ? `<div class="section-head" style="margin-top:8px"><h3 style="margin:0">New content</h3><span class="muted" style="font-size:11px">${words} words</span></div><div class="wp-content-preview">${after.content}</div>` : ''}
+    <div class="inline" style="margin-top:14px;flex-wrap:wrap;gap:8px">
+      <button class="btn success" onclick="applyOptimization(${o.id})">✅ Apply to WordPress</button>
+      <button class="btn ghost" onclick="dismissOptimization(${o.id})">🗑 Dismiss</button>
+      <button class="btn ghost" onclick="closeModal()">Close</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Applying writes the change to your live post. (If WordPress is blocked by your host's CDN, you'll see a clear message and can apply later once it's reachable.)</p>`);
+}
+window.applyOptimization = async (id) => {
+  const t = toast('Applying to WordPress…', 'loading');
+  try { await api.post('/optimize/' + id + '/apply'); t.done('Applied live ✓', 'success'); closeModal(); if (current === 'indexstatus') views.indexstatus(); }
+  catch (e) { t.fail(e.message); }
+};
+window.dismissOptimization = async (id) => {
+  try { await api.post('/optimize/' + id + '/dismiss'); toast('Dismissed', 'success'); closeModal(); }
+  catch (e) { toast(e.message, 'error'); }
+};
+window.idxCheckOne = async (url) => {
+  const t = toast('Inspecting in Google…', 'loading');
+  try { const r = await api.post('/indexmon/check', { url }); t.done(r.verdict === 'PASS' ? '✅ Indexed' : `Not indexed — ${r.coverage || r.verdict}`, r.verdict === 'PASS' ? 'success' : 'error'); await views.indexstatus(); }
+  catch (e) { t.fail(e.message); }
+};
+window.reqIndex = async (url) => {
+  const t = toast('Requesting indexing…', 'loading');
+  try { await api.post('/indexmon/submit', { url }); t.done('Submitted to Google Indexing API', 'success'); }
+  catch (e) { t.fail(e.message); }
+};
 window.connectGsc = async () => {
   try { const { url } = await api.get('/gsc/auth-url'); window.open(url, '_blank', 'width=520,height=640'); toast('Complete sign-in in the popup, then refresh', 'success'); }
   catch (e) { toast(e.message, 'error'); }
@@ -2499,6 +2754,7 @@ window.strikingToIdeas = async () => {
 const OPP_META = {
   ctr: { icon: '🎯', label: 'Low CTR', tip: 'Ranks well but few clicks — rewrite title & meta.' },
   refresh: { icon: '📈', label: 'Striking distance', tip: 'Page 2 — refresh & expand to reach page 1.' },
+  regenerate: { icon: '♻️', label: 'Full regenerate', tip: 'Complete best-in-class rewrite with rich components + gap analysis.' },
   gap: { icon: '🧩', label: 'Content gap', tip: 'Demand with no dedicated page — create one.' },
   cannibal: { icon: '⚔️', label: 'Cannibalization', tip: 'Multiple pages compete for one query.' },
   destuff: { icon: '🧹', label: 'Reduce density', tip: 'Keyword over-optimised — de-stuff to the target density.' },
@@ -2589,14 +2845,14 @@ window.dismissOpt = async (id) => { await api.post(`/optimize/${id}/dismiss`); l
 // ---- Site: themes & plugins ----------------------------------------------
 let wpSub = 'overview';
 const wpState = {
-  posts: { page: 1, search: '', status: 'any' },
-  pages: { page: 1, search: '', status: 'any' },
+  posts: { page: 1, search: '', status: 'any', orderby: 'date', order: 'desc', perPage: 20 },
+  pages: { page: 1, search: '', status: 'any', orderby: 'date', order: 'desc', perPage: 20 },
   media: { page: 1, search: '' },
   comments: { page: 1, status: '' },
 };
 views.site = async () => {
   const subs = [['overview', '🩺 Overview'], ['posts', '📝 Posts'], ['pages', '📄 Pages'], ['media', '🖼 Media'], ['comments', '💬 Comments'], ['plugins', '🔌 Plugins'], ['themes', '🎨 Themes']];
-  $('#view').innerHTML = `<div class="subtabs">${subs.map(([k, l]) => `<button class="subtab ${wpSub === k ? 'active' : ''}" onclick="wpGo('${k}')">${l}</button>`).join('')}</div><div id="wpHub"></div>`;
+  $('#view').innerHTML = `${pipelineFlow('site')}<div class="subtabs">${subs.map(([k, l]) => `<button class="subtab ${wpSub === k ? 'active' : ''}" onclick="wpGo('${k}')">${l}</button>`).join('')}</div><div id="wpHub"></div>`;
   renderWpSub();
 };
 window.wpGo = (sub) => { wpSub = sub; views.site(); };
@@ -2638,7 +2894,7 @@ async function wpContent(type) {
   hubLoading();
   const st = wpState[type];
   let data;
-  try { data = await api.get(`/wp/content/${type}?page=${st.page}&status=${st.status}&search=${encodeURIComponent(st.search)}`); }
+  try { data = await api.get(`/wp/content/${type}?page=${st.page}&status=${st.status}&search=${encodeURIComponent(st.search)}&orderby=${st.orderby || 'date'}&order=${st.order || 'desc'}&per_page=${st.perPage || 20}`); }
   catch (e) { $('#wpHub').innerHTML = `<div class="card"><p class="badge failed">${esc(e.message)}</p></div>`; return; }
   const statuses = ['any', 'publish', 'draft', 'pending', 'future', 'private'];
   // Live Rank Math scores for the visible items (one bulk call via the bridge plugin).
@@ -2656,9 +2912,9 @@ async function wpContent(type) {
   // Focus keyword from Rank Math (via the bridge); fall back to the slug.
   const focusCell = (p) => {
     const fk = bridge && rmFocus ? rmFocus[p.id] : '';
-    if (fk) return `<td><span class="badge" style="font-size:10px;background:var(--accent-soft);color:var(--accent)" title="Rank Math focus keyword">🎯 ${esc(fk)}</span></td>`;
+    if (fk) return `<td><span class="badge cell-ellipsis" style="font-size:10px;background:var(--accent-soft);color:var(--accent)" title="Rank Math focus keyword: ${esc(fk)}">🎯 ${esc(fk)}</span></td>`;
     const guess = (p.slug || '').replace(/-/g, ' ').trim();
-    return guess ? `<td class="muted" style="font-size:11px" title="from slug (no Rank Math focus keyword)">${esc(guess)}</td>` : '<td class="muted">–</td>';
+    return guess ? `<td><span class="muted cell-ellipsis" style="font-size:11px" title="from slug (no Rank Math focus keyword): ${esc(guess)}">${esc(guess)}</span></td>` : '<td class="muted">–</td>';
   };
   const rows = data.items.map((p) => `<tr>
     <td><a class="title-link" onclick="wpDetail('${type}',${p.id})" title="Open details">${esc(p.title)}</a>${p.slug ? `<div class="muted" style="font-size:11px">/${esc(p.slug)}</div>` : ''}</td>
@@ -2686,12 +2942,19 @@ async function wpContent(type) {
     <div class="spacer"></div><button class="btn sm ghost" onclick="bridgeHelp()">How</button></div>` : '';
   $('#wpHub').innerHTML = `<div class="card">
     ${limitBanner}${bridgeBanner}
-    <div class="toolbar">
+    <div class="toolbar" style="gap:8px;flex-wrap:wrap">
       <input type="search" id="wpSearch" placeholder="Search ${type}…" value="${esc(st.search)}" onkeydown="if(event.key==='Enter')wpSearchGo('${type}')"/>
-      <select id="wpStatusSel" onchange="wpStatusGo('${type}')">${statuses.map((s) => `<option ${st.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
       <button class="btn sm" onclick="wpSearchGo('${type}')">Search</button>
+      <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:5px">Status
+        <select id="wpStatusSel" onchange="wpStatusGo('${type}')">${statuses.map((s) => `<option ${st.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+      <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:5px">Sort
+        <select onchange="wpSortGo('${type}',this.value)">
+          ${[['date|desc', 'Newest'], ['date|asc', 'Oldest'], ['title|asc', 'Title A–Z'], ['title|desc', 'Title Z–A'], ['modified|desc', 'Recently updated']].map((o) => `<option value="${o[0]}" ${(st.orderby + '|' + st.order) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}
+        </select></label>
+      <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:5px">Per page
+        <select onchange="wpPerPageGo('${type}',this.value)">${[10, 20, 50, 100].map((n) => `<option ${st.perPage === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <div class="spacer"></div>
-      <span class="muted">${data.total} ${type}</span>
+      <span class="muted" style="font-size:12px">${data.total} ${type}${st.search ? ` matching “${esc(st.search)}”` : ''}</span>
     </div>
     ${data.items.length ? `<div class="table-scroll"><table><thead><tr><th>Title</th><th>Status</th><th>Focus keyword</th><th>Rank Math</th><th>Date</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty">No ' + type + ' found.</div>'}
     ${pager(data, 'wpPage_' + type)}
@@ -2706,7 +2969,6 @@ window.wpDetail = async (type, id) => {
   try { d = await api.get(`/wp/item/${type}/${id}`); }
   catch (e) { modal('Could not load', `<p class="badge failed">${esc(e.message)}</p><div class="inline"><button class="btn ghost" onclick="closeModal()">Close</button></div>`); return; }
   const rm = d.rankMath || {};
-  const adminEdit = (cfg) => null;
   const wpAdmin = d.link ? d.link.split('/').slice(0, 3).join('/') + `/wp-admin/post.php?post=${d.id}&action=edit` : '';
   const meta = [
     rm.focusKeyword ? `<span class="badge" style="background:var(--accent-soft);color:var(--accent)">🎯 ${esc(rm.focusKeyword)}</span>` : '',
@@ -2723,8 +2985,9 @@ window.wpDetail = async (type, id) => {
       ${d.link ? `<a class="btn" href="${esc(d.link)}" target="_blank" rel="noopener">↗ View live</a>` : ''}
       ${wpAdmin ? `<a class="btn secondary" href="${esc(wpAdmin)}" target="_blank" rel="noopener">✏️ Edit in WordPress</a>` : ''}
       ${type === 'posts' && d.link ? `<button class="btn secondary" onclick="closeModal();wpAnalyzeUrl('${esc(d.link)}')">🔬 Analyze gaps</button>
-      <button class="btn ghost" onclick="closeModal();wpOptimize('${esc(d.link)}','ctr')">🎯 Optimize CTR</button>
-      <button class="btn ghost" onclick="closeModal();wpOptimize('${esc(d.link)}','refresh')">📈 Refresh</button>` : ''}
+      <button class="btn success" onclick="closeModal();optimizeLive('${esc(d.link)}','regenerate')" title="Full rewrite with rich components + gap analysis">♻️ Regenerate</button>
+      <button class="btn ghost" onclick="closeModal();optimizeLive('${esc(d.link)}','refresh')">📈 Refresh</button>
+      <button class="btn ghost" onclick="closeModal();optimizeLive('${esc(d.link)}','ctr')">🎯 CTR</button>` : ''}
       <button class="btn ghost" onclick="closeModal()">Close</button>
     </div>`);
 };
@@ -2752,6 +3015,8 @@ window['wpPage_posts'] = (p) => { wpState.posts.page = p; wpContent('posts'); };
 window['wpPage_pages'] = (p) => { wpState.pages.page = p; wpContent('pages'); };
 window.wpSearchGo = (type) => { wpState[type].search = $('#wpSearch').value.trim(); wpState[type].page = 1; wpContent(type); };
 window.wpStatusGo = (type) => { wpState[type].status = $('#wpStatusSel').value; wpState[type].page = 1; wpContent(type); };
+window.wpSortGo = (type, val) => { const [orderby, order] = String(val).split('|'); wpState[type].orderby = orderby; wpState[type].order = order; wpState[type].page = 1; wpContent(type); };
+window.wpPerPageGo = (type, n) => { wpState[type].perPage = +n || 20; wpState[type].page = 1; wpContent(type); };
 window.wpSetStatus = async (type, id, status) => { try { await api.post(`/wp/${type}/${id}/status`, { status }); toast(`Set to ${status}`, 'success'); wpContent(type); } catch (e) { toast(e.message, 'error'); } };
 window.wpTrash = async (type, id) => { if (!confirm('Move this to trash on WordPress?')) return; try { await api.del(`/wp/${type}/${id}`); toast('Moved to trash', 'success'); wpContent(type); } catch (e) { toast(e.message, 'error'); } };
 window.wpOptimize = async (url, mode) => { toast('Preparing optimization…'); try { await api.post('/optimize/' + mode, { url }); toast('Prepared — see Opportunities', 'success'); } catch (e) { toast(e.message, 'error'); } };
@@ -2907,14 +3172,27 @@ views.settings = async () => {
     const scope = f.scope === 'shared'
       ? ' <span class="badge" style="font-size:9px;background:var(--accent-soft);color:var(--accent)" title="Shared across all tenants (super admin)">🌐 shared</span>'
       : (currentUser && !currentUser.isSuperAdmin ? ' <span class="badge" style="font-size:9px" title="Specific to your workspace">your site</span>' : '');
-    return `<label class="field"><span>${esc(f.label)}${scope}</span>${input}</label>${help}`;
+    // Where the live value comes from — makes the dashboard-vs-.env precedence obvious.
+    const src = f.source === 'dashboard'
+      ? ' <span class="badge" style="font-size:9px;background:rgba(52,211,153,.15);color:#34d399" title="Value saved here in the dashboard. This OVERRIDES any .env value.">saved here</span>'
+      : f.source === 'env'
+        ? ' <span class="badge" style="font-size:9px;background:rgba(79,140,255,.15);color:var(--accent)" title="Value is coming from your .env file (no dashboard value saved). Saving here would override it.">from .env</span>'
+        : '';
+    return `<label class="field"><span>${esc(f.label)}${scope}${src}</span>${input}</label>${help}`;
   };
   const groupCard = (g) => `<div class="card"><h3>${esc(g.group)}</h3>
     ${g.help ? `<p class="hint">${esc(g.help)}</p>` : ''}
     ${g.fields.map(field).join('')}
     ${(g.actions || []).map((a) => `<button class="btn sm secondary" onclick="${a.fn}('${esc(a.arg || '')}')">${esc(a.label)}</button>`).join(' ')}
   </div>`;
+  const envCount = schema.reduce((n, g) => n + g.fields.filter((f) => f.source === 'env').length, 0);
   $('#view').innerHTML = `
+    <div class="callout" style="background:var(--accent-soft);border-color:var(--accent);margin-bottom:14px"><span class="ico">ℹ️</span>
+      <div><b>Where settings come from:</b> the order of priority is <b>this Dashboard → .env → default</b>.
+      A value <span class="badge" style="font-size:9px;background:rgba(52,211,153,.15);color:#34d399">saved here</span> in the dashboard <b>overrides</b> the same key in <code>.env</code>.
+      A value tagged <span class="badge" style="font-size:9px;background:rgba(79,140,255,.15);color:var(--accent)">from .env</span> is being used because nothing is saved here for it.
+      ${envCount ? `Right now <b>${envCount}</b> setting(s) are coming from .env.` : 'Right now everything is configured here in the dashboard.'}
+      <span class="muted">(.env changes need a server restart. The Supabase credentials are intentionally .env-only.)</span></div></div>
     <div class="toolbar"><p class="muted" style="margin:0">Every behavior below is owner-controlled — nothing is hard-coded. <b>${schema.reduce((n, g) => n + g.fields.length, 0)}</b> settings.</p>
       <div class="spacer"></div><button class="btn" onclick="saveSettings()">💾 Save all settings</button></div>
     <div class="grid cols-2">${schema.map(groupCard).join('')}</div>

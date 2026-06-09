@@ -146,15 +146,46 @@ export function convertArticleToHub(articleId, spokes = []) {
   const clusterId = info.lastInsertRowid;
   insertItem.run(clusterId, hubKw, 'hub');
   db.prepare("UPDATE articles SET cluster_id=?, role='hub', updated_at=datetime('now') WHERE id=?").run(clusterId, articleId);
+
   let added = 0;
+  const linked = [];                          // spokes that ALREADY exist → linked, NOT regenerated
+  const seen = new Set([kwindex.norm(hubKw)]); // de-dupe within the suggestion list (and vs the hub)
   for (const sp of spokes) {
-    if (!sp || !sp.trim()) continue;
-    insertItem.run(clusterId, sp.trim(), 'spoke');
-    db.prepare("INSERT INTO articles(cluster_id, keyword, role, status) VALUES(?, ?, 'spoke', 'idea')").run(clusterId, sp.trim());
+    const kw = (sp || '').trim();
+    if (!kw) continue;
+    const n = kwindex.norm(kw);
+    if (n && seen.has(n)) continue;
+    if (n) seen.add(n);
+
+    // 1) Do WE already have an article for this keyword (any status)? Join it to
+    //    the cluster as a spoke — don't duplicate or regenerate.
+    const localArt = db.prepare(
+      "SELECT id, wp_url, title, status FROM articles WHERE lower(COALESCE(NULLIF(TRIM(focus_keyword), ''), keyword)) = lower(?) AND id != ? AND (cluster_id IS NULL OR cluster_id = ?) LIMIT 1"
+    ).get(kw, articleId, clusterId);
+    if (localArt) {
+      db.prepare("UPDATE articles SET cluster_id=?, role='spoke', updated_at=datetime('now') WHERE id=?").run(clusterId, localArt.id);
+      insertItem.run(clusterId, kw, 'spoke');
+      linked.push({ keyword: kw, url: localArt.wp_url || null, title: localArt.title || kw, source: 'your content' });
+      continue;
+    }
+    // 2) Is it ALREADY PUBLISHED on the live site? (keyword_index = live WP posts +
+    //    Rank Math + our posts.) Represent it as a published spoke so the hub
+    //    interlinks to its real URL — no regeneration.
+    const m = kwindex.check(kw);
+    if (m.exists && m.match && m.match.url) {
+      db.prepare("INSERT INTO articles(cluster_id, keyword, focus_keyword, role, status, wp_url) VALUES(?,?,?,'spoke','published',?)")
+        .run(clusterId, kw, kw, m.match.url);
+      insertItem.run(clusterId, kw, 'spoke');
+      linked.push({ keyword: kw, url: m.match.url, title: m.match.keyword || kw, source: m.match.source || 'live' });
+      continue;
+    }
+    // 3) Genuinely missing → create an idea to generate.
+    insertItem.run(clusterId, kw, 'spoke');
+    db.prepare("INSERT INTO articles(cluster_id, keyword, role, status) VALUES(?, ?, 'spoke', 'idea')").run(clusterId, kw);
     added++;
   }
-  log.info('clusters', `Converted article #${articleId} to hub "${hubKw}" with ${added} spoke(s)`);
-  return { clusterId, hub: hubKw, spokesAdded: added };
+  log.info('clusters', `Converted #${articleId} to hub "${hubKw}": ${added} new spoke(s) to generate, ${linked.length} existing linked (deduped)`);
+  return { clusterId, hub: hubKw, spokesAdded: added, existingLinked: linked.length, existing: linked };
 }
 
 export function list() {

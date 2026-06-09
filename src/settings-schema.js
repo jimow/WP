@@ -101,6 +101,15 @@ export const SCHEMA = [
     ],
   },
   {
+    group: 'Auto content-gap analysis (existing pages)',
+    help: 'On its own schedule, the worker takes each existing article’s focus keyword, looks up the live Google top-10 (via Ahrefs), scrapes them, and saves an analysis of what they cover that you don’t — with apply-ready edits. Results appear on each article (🔬 Analyze panel). Runs a few at a time so it never hammers anything; skips quietly when Ahrefs/the site is unreachable.',
+    fields: [
+      { key: 'auto_gap_analysis', label: 'Step: auto-analyze existing content vs Google top-10', type: 'toggle', default: 'false' },
+      { key: 'gap_analysis_per_tick', label: 'Articles to analyze per run', type: 'number', default: '2' },
+      { key: 'gap_analysis_interval_days', label: 'Re-analyze each article every (days)', type: 'number', default: '30' },
+    ],
+  },
+  {
     group: 'Opportunity rules (you set the thresholds)',
     help: 'Define what counts as an opportunity. The agent acts only within these owner-set bounds.',
     fields: [
@@ -143,7 +152,8 @@ export const SCHEMA = [
       { key: 'seo_require_toc', label: 'Table of Contents', type: 'toggle', default: 'true' },
       { key: 'seo_require_faq', label: 'FAQ section (schema)', type: 'toggle', default: 'true' },
       { key: 'seo_require_key_takeaways', label: 'Key Takeaways box', type: 'toggle', default: 'true' },
-      { key: 'rich_presentation', label: 'Rich visual components (callouts, tips, cards, stat boxes, related-reading)', type: 'toggle', default: 'true', help: 'Adds magazine-style styled boxes (Quick Answer, Key Takeaways, Pro tips, warnings, stat/step cards, pull quotes, a Keep-reading link card) using your theme’s accent colour. They render on the published site via inline-styled blocks, so they look right on any theme.' },
+      { key: 'rich_presentation', label: 'Rich visual components (callouts, tips, cards, stat boxes, related-reading)', type: 'toggle', default: 'true', help: 'Adds magazine-style styled boxes using your theme’s accent colour: TL;DR, Quick Answer, Key Takeaways, Pro tips, ℹ️ notes, ⭐ important, 📖 definitions, ✅/❌ pros & cons, warnings, 🧪 worked examples, comparison tables, checklists, “Did you know?”, expert insight, stat/step cards, pull quotes, and a Keep-reading link card. They render via inline-styled blocks, so they look right on any theme.' },
+      { key: 'presentation_style', label: 'Presentation richness', type: 'select', default: 'rich', options: [['minimal', 'Minimal (3–4 components)'], ['standard', 'Standard (5–7)'], ['rich', 'Rich (8–11, magazine-style)']], help: 'How many of the visual components the writer should use. Minimal keeps it clean; Rich produces a varied magazine-style layout.' },
       { key: 'seo_title_number', label: 'Number in title', type: 'toggle', default: 'true' },
       { key: 'seo_title_power_word', label: 'Power word in title', type: 'toggle', default: 'true' },
       { key: 'seo_image_alt', label: 'Suggest images + alt text', type: 'toggle', default: 'true' },
